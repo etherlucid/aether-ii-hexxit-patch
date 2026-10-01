@@ -77,12 +77,14 @@ public class PatchAetherMusicConfig {
                         inject.add(new FieldInsnNode(Opcodes.PUTSTATIC,
                             "net/aetherteam/mainmenu_api/MenuBaseConfig", "onlyPlayInAether", "Z"));
 
-                        // Check Aether.config if available
+                        // Check Aether.config if non-null
                         LabelNode skipForgeConfig = new LabelNode();
                         inject.add(new FieldInsnNode(Opcodes.GETSTATIC,
                             "net/aetherteam/aether/Aether", "config", "Lnet/minecraftforge/common/Configuration;"));
-                        inject.add(new InsnNode(Opcodes.DUP));
                         inject.add(new JumpInsnNode(Opcodes.IFNULL, skipForgeConfig));
+
+                        inject.add(new FieldInsnNode(Opcodes.GETSTATIC,
+                            "net/aetherteam/aether/Aether", "config", "Lnet/minecraftforge/common/Configuration;"));
                         inject.add(new LdcInsnNode("general"));
                         inject.add(new LdcInsnNode("onlyPlayInAether"));
                         inject.add(new InsnNode(Opcodes.ICONST_0));
@@ -98,7 +100,6 @@ public class PatchAetherMusicConfig {
                         inject.add(new FieldInsnNode(Opcodes.PUTSTATIC,
                             "net/aetherteam/mainmenu_api/MenuBaseConfig", "onlyPlayInAether", "Z"));
                         inject.add(notSetInForge);
-                        inject.add(new InsnNode(Opcodes.POP));
                         inject.add(skipForgeConfig);
 
                         // System.out.println("[Aether Music Patch] Loaded config option onlyPlayInAether = " + MenuBaseConfig.onlyPlayInAether)
@@ -122,9 +123,6 @@ public class PatchAetherMusicConfig {
 
                         mn.tryCatchBlocks.add(new TryCatchBlockNode(tryStart, tryEnd, handler, "java/lang/Exception"));
                         mn.instructions.insertBefore(insns[i], inject);
-                        mn.maxStack = Math.max(mn.maxStack, 4);
-                        mn.maxLocals = Math.max(mn.maxLocals, 2);
-                        System.out.println("  -> Injected onlyPlayInAether read into MenuBaseConfig.loadConfig()");
                         break;
                     }
                 }
@@ -204,7 +202,6 @@ public class PatchAetherMusicConfig {
                 inject.add(skipLabel);
 
                 mn.instructions.insert(inject);
-                mn.maxStack = Math.max(mn.maxStack, 3);
                 System.out.println("  -> Injected dimension check into MainMenuAPI JukeboxPlayer.run()");
                 break;
             }
@@ -308,13 +305,13 @@ public class PatchAetherMusicConfig {
     }
 
     static void writeClass(ClassNode cn, String outputPath) throws Exception {
-        ClassWriter cw = new ClassWriter(0);
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cn.accept(cw);
         File out = new File(outputPath);
         out.getParentFile().mkdirs();
         try (FileOutputStream fos = new FileOutputStream(out)) {
             fos.write(cw.toByteArray());
         }
-        System.out.println("Written: " + outputPath);
+        System.out.println("Written with COMPUTE_FRAMES: " + outputPath);
     }
 }
