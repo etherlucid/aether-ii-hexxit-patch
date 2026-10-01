@@ -33,8 +33,7 @@ fi
 
 # 3. Update Patched Mod JAR
 echo "[4/4] Updating Patched Mod Jar..."
-cd /tmp/music_patch_out
-$JAR uf "$MOD_JAR" net/aetherteam/aether/sound/JukeboxData.class net/aetherteam/aether/sound/JukeboxPlayer.class
+$JAR uf "$MOD_JAR" net/aetherteam/aether/sound/JukeboxData.class net/aetherteam/aether/sound/JukeboxPlayer.class net/aetherteam/mainmenu_api/MenuBaseConfig.class net/aetherteam/mainmenu_api/JukeboxPlayer.class
 
 if [ -d "/tmp/it_patch_out2" ]; then
     cd /tmp/it_patch_out2
