@@ -5,43 +5,44 @@ JAVAC="/home/soko/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/ja
 JAVA="/home/soko/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/java/java-runtime-gamma/bin/java"
 JAR="/home/soko/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/java/java-runtime-gamma/bin/jar"
 
-MC_JAR="/home/soko/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/instances/Hexxit-Remix-0.1.2/minecraft/bin/minecraft.jar"
-MOD_JAR="/home/soko/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/instances/Hexxit-Remix-0.1.2/minecraft/mods/aether_1.5.2_1.0_patched.jar"
-LIBS_CP=$(cat /tmp/libs_classpath.txt | tr ":" "\n" | grep -v "minecraft-26.2" | tr "\n" ":")
+INSTANCE_DIR="/home/soko/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/instances/Hexxit-Remix-0.1.3/minecraft"
+MC_JAR="$INSTANCE_DIR/bin/minecraft.jar"
+COREMOD_JAR="$INSTANCE_DIR/coremods/playercoreapi_1.5.2_1.0.jar"
+ASM_JAR="$INSTANCE_DIR/lib/asm-all-4.1.jar"
 
-echo "=== Building Aether II Hexxit Patched Jar ==="
+BASE_JAR="/home/soko/Downloads/aether_1.5.2_1.0_patched.jar"
+TARGET_JAR="mods/aether_1.5.2_1.0.3_patched.jar"
+CLIENT_MODS_DIR="$INSTANCE_DIR/mods"
+
+echo "=== Building Aether II Hexxit Patched Jar v1.0.3 (MCPC+ Compatibility) ==="
 
 mkdir -p /tmp/build_out
 mkdir -p mods
 
-# 1. Compile AetherInventoryAdapter
-echo "[1/4] Compiling AetherInventoryAdapter..."
-$JAVAC -source 8 -target 8 -cp "$MC_JAR:$LIBS_CP" -d /tmp/build_out src/AetherInventoryAdapter.java
+# 1. Compile AetherMcpcAdapter with Java 7 target (bytecode version 51)
+echo "[1/4] Compiling AetherMcpcAdapter (Java 7 target)..."
+$JAVAC -source 7 -target 7 -cp "$MC_JAR:$COREMOD_JAR:$BASE_JAR" -d /tmp/build_out src/AetherMcpcAdapter.java
 
-# 2. Compile and run Patchers
-echo "[2/4] Compiling ASM Patchers..."
-$JAVAC -source 8 -target 8 -cp ":/tmp/build_out:$MC_JAR:$LIBS_CP" -d /tmp/build_out src/Patch*.java src/Build*.java
+# 2. Compile PatchAetherPlayerAccess
+echo "[2/4] Compiling ASM Patcher..."
+$JAVAC -cp "$ASM_JAR" -d /tmp/build_out src/PatchAetherPlayerAccess.java
 
-echo "[3/4] Running ASM Patchers..."
-# Jukebox / Music patcher
-$JAVA -cp ":/tmp/build_out:/tmp/cmp_patched:$MC_JAR:$LIBS_CP" PatchAetherMusicConfig
+# 3. Run ASM Patcher to inject dual-check logic into target jar
+echo "[3/4] Patching Aether, CommonProxy, and AetherPlayerTracker..."
+$JAVA -cp "/tmp/build_out:$ASM_JAR:$MC_JAR:$COREMOD_JAR:$BASE_JAR" PatchAetherPlayerAccess "$BASE_JAR" "$TARGET_JAR"
 
-# InvTweaks patcher
-if [ -d "/tmp/it_extract" ]; then
-    $JAVA -cp ":/tmp/build_out:/tmp/it_extract:$MC_JAR:$LIBS_CP" PatchInvTweaksCreative
-fi
-
-# 3. Update Patched Mod JAR
-echo "[4/4] Updating Patched Mod Jar..."
-cd /tmp/music_patch_out
-$JAR uf "$MOD_JAR" net/aetherteam/aether/sound/JukeboxData.class net/aetherteam/aether/sound/JukeboxPlayer.class
-
-if [ -d "/tmp/it_patch_out2" ]; then
-    cd /tmp/it_patch_out2
-    $JAR uf "$MOD_JAR" invtweaks/InvTweaksObfuscation.class
-fi
-
+# 4. Inject AetherMcpcAdapter.class into the target mod JAR
+echo "[4/4] Injecting AetherMcpcAdapter into $TARGET_JAR..."
+cd /tmp/build_out
+$JAR uf "/home/soko/Documents/antigravity/goofy-hypatia/$TARGET_JAR" AetherMcpcAdapter.class
 cd /home/soko/Documents/antigravity/goofy-hypatia
-cp "$MOD_JAR" mods/aether_1.5.2_1.0_patched.jar
 
-echo "=== Build Complete: mods/aether_1.5.2_1.0_patched.jar ==="
+# Deploy to client instance
+if [ -d "$CLIENT_MODS_DIR" ]; then
+    echo "Deploying to client instance: $CLIENT_MODS_DIR..."
+    rm -f "$CLIENT_MODS_DIR"/aether_1.5.2_1.0.*_patched.jar
+    cp "$TARGET_JAR" "$CLIENT_MODS_DIR/aether_1.5.2_1.0.3_patched.jar"
+    echo "Deployed aether_1.5.2_1.0.3_patched.jar to client."
+fi
+
+echo "=== Build Complete: $TARGET_JAR ==="
