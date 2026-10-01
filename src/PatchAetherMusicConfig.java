@@ -45,6 +45,18 @@ public class PatchAetherMusicConfig {
             System.out.println("MenuBaseConfig: added field onlyPlayInAether");
         }
 
+        // Add static boolean field hasLoggedMusicConfig
+        boolean hasLoggedField = false;
+        for (Object f : cn.fields) {
+            if (((FieldNode)f).name.equals("hasLoggedMusicConfig")) { hasLoggedField = true; break; }
+        }
+        if (!hasLoggedField) {
+            FieldNode field = new FieldNode(
+                Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
+                "hasLoggedMusicConfig", "Z", null, Boolean.FALSE);
+            cn.fields.add(field);
+        }
+
         // Patch loadConfig()
         for (Object mnObj : cn.methods) {
             MethodNode mn = (MethodNode) mnObj;
@@ -102,6 +114,16 @@ public class PatchAetherMusicConfig {
                         inject.add(notSetInForge);
                         inject.add(skipForgeConfig);
 
+                        // Only log ONCE on initial load
+                        LabelNode alreadyLogged = new LabelNode();
+                        inject.add(new FieldInsnNode(Opcodes.GETSTATIC,
+                            "net/aetherteam/mainmenu_api/MenuBaseConfig", "hasLoggedMusicConfig", "Z"));
+                        inject.add(new JumpInsnNode(Opcodes.IFNE, alreadyLogged));
+
+                        inject.add(new InsnNode(Opcodes.ICONST_1));
+                        inject.add(new FieldInsnNode(Opcodes.PUTSTATIC,
+                            "net/aetherteam/mainmenu_api/MenuBaseConfig", "hasLoggedMusicConfig", "Z"));
+
                         // System.out.println("[Aether Music Patch] Loaded config option onlyPlayInAether = " + MenuBaseConfig.onlyPlayInAether)
                         inject.add(new FieldInsnNode(Opcodes.GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;"));
                         inject.add(new TypeInsnNode(Opcodes.NEW, "java/lang/StringBuilder"));
@@ -112,6 +134,8 @@ public class PatchAetherMusicConfig {
                         inject.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Z)Ljava/lang/StringBuilder;"));
                         inject.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;"));
                         inject.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V"));
+
+                        inject.add(alreadyLogged);
 
                         inject.add(tryEnd);
                         inject.add(new JumpInsnNode(Opcodes.GOTO, after));
