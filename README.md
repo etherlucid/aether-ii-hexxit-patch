@@ -16,6 +16,10 @@ Bytecode patches to the Aether II 1.5.2 mod for Minecraft 1.5.2 (Hexxit Remix).
    - Configurable in `MenuAPI.properties` (`onlyPlayInAether=true`) or `config/Aether II.cfg` under `general { B:onlyPlayInAether=true }`.
    - Logs `[Aether Music Patch]` configuration status to console/logs on startup.
 
+4. **MCPC+ / Bukkit Server Player Access Safety**:
+   - Replaces unsafe direct `PlayerCoreServer`/`PlayerCoreClient` casts in `CommonProxy`, `ClientProxy`, `Aether`, and `AetherHooks` with safe `instanceof` checks and `null` guards.
+   - Prevents `java.lang.ClassCastException` and server kicks on MCPC+/Bukkit multiplayer servers when right-clicking beds, blocks, or entities.
+
 ## Files & Sources
 
 - Patched mod JAR: `mods/aether_1.5.2_1.0_patched.jar`

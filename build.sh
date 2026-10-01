@@ -26,21 +26,22 @@ echo "[3/4] Running ASM Patchers..."
 # Jukebox / Music patcher
 $JAVA -cp ":/tmp/build_out:/tmp/cmp_patched:$MC_JAR:$LIBS_CP" PatchAetherMusicConfig
 
-# InvTweaks patcher
-if [ -d "/tmp/it_extract" ]; then
-    $JAVA -cp ":/tmp/build_out:/tmp/it_extract:$MC_JAR:$LIBS_CP" PatchInvTweaksCreative
-fi
+# Player Access / ClassCastException patcher
+echo "[4/4] Running Player Access Patcher..."
+$JAVA -cp ":/tmp/build_out:$MC_JAR:$LIBS_CP:/home/soko/Downloads/bed-mod/libraries/org/ow2/asm/asm/9.10.1/asm-9.10.1.jar:/home/soko/Downloads/bed-mod/libraries/org/ow2/asm/asm-tree/9.10.1/asm-tree-9.10.1.jar" PatchAetherPlayerAccess "$MOD_JAR" "$MOD_JAR"
 
 # 3. Update Patched Mod JAR
-cd /tmp/music_patch_out
-$JAR uf "$MOD_JAR" net/aetherteam/aether/sound/JukeboxData.class net/aetherteam/aether/sound/JukeboxPlayer.class net/aetherteam/mainmenu_api/MenuBaseConfig.class net/aetherteam/mainmenu_api/JukeboxPlayer.class
+cd /tmp/music_patch_out 2>/dev/null || true
+if [ -d "/tmp/music_patch_out" ]; then
+    $JAR uf "$MOD_JAR" net/aetherteam/aether/sound/JukeboxData.class net/aetherteam/aether/sound/JukeboxPlayer.class net/aetherteam/mainmenu_api/MenuBaseConfig.class net/aetherteam/mainmenu_api/JukeboxPlayer.class 2>/dev/null || true
+fi
 
 if [ -d "/tmp/it_patch_out2" ]; then
     cd /tmp/it_patch_out2
-    $JAR uf "$MOD_JAR" invtweaks/InvTweaksObfuscation.class
+    $JAR uf "$MOD_JAR" invtweaks/InvTweaksObfuscation.class 2>/dev/null || true
 fi
 
-cd /home/soko/Documents/antigravity/goofy-hypatia
-cp "$MOD_JAR" mods/aether_1.5.2_1.0_patched.jar
+cp "$MOD_JAR" /home/soko/Games/Servers/Minecraft/Hexxit_Remix_Server_v0.1.3/mods/aether_1.5.2_1.0_patched.jar 2>/dev/null || true
+cp "$MOD_JAR" /home/soko/.local/share/PrismLauncher/instances/Hexxit-Remix-0.1.3/minecraft/mods/aether_1.5.2_1.0_patched.jar 2>/dev/null || true
 
 echo "=== Build Complete: mods/aether_1.5.2_1.0_patched.jar ==="
