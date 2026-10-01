@@ -14,7 +14,10 @@ These Java source files are the ASM bytecode patchers used to produce the patche
 - **PatchClientTickHandler.java** – ASM patcher for `ClientTickHandler.class`
 - **PatchSlotAetherCreative.java** – ASM patcher for `SlotAetherCreativeInventory.class`
 - **PatchAetherSlotHelper.java** – ASM patcher for `AetherSlotHelper.class`
+- **PatchInvTweaksCreative.java** – ASM patcher for `invtweaks.InvTweaksObfuscation.class` (restores Inventory Tweaks GUI sorting buttons)
+- **PatchAetherMusicConfig.java** – ASM patcher for `JukeboxData.class` & `JukeboxPlayer.class` (adds `onlyPlayInAether` config option)
 
 ## Building
 
-Requires Java 7 and ASM library (asm-all-4.1.jar from the Minecraft instance libs).
+Requires Java 8 (or 17 with `-source 8 -target 8`) and ASM library (asm-all-4.1.jar from the Minecraft instance libs).
+
