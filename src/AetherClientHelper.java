@@ -802,17 +802,18 @@ public class AetherClientHelper {
                         if (Math.abs(px) > 0.001F || Math.abs(py) > 0.001F || Math.abs(pz) > 0.001F) {
                             GL11.glTranslatef(px * 0.0625F, py * 0.0625F, pz * 0.0625F);
                         }
-                        // Apply body yaw
+                        // Match Smart Moving ModelRotationRenderer XYZ order (glRotate Z, then Y, then X)
+                        // Apply body roll
+                        if (Math.abs(rz) > 0.001F) {
+                            GL11.glRotatef(rz, 0.0F, 0.0F, 1.0F);
+                        }
+                        // Apply body yaw (+ry to match player facing direction)
                         if (Math.abs(ry) > 0.001F) {
-                            GL11.glRotatef(-ry, 0.0F, 1.0F, 0.0F);
+                            GL11.glRotatef(ry, 0.0F, 1.0F, 0.0F);
                         }
                         // Apply body crawl pitch
                         if (Math.abs(rx) > 0.001F) {
                             GL11.glRotatef(rx, 1.0F, 0.0F, 0.0F);
-                        }
-                        // Apply body roll
-                        if (Math.abs(rz) > 0.001F) {
-                            GL11.glRotatef(rz, 0.0F, 0.0F, 1.0F);
                         }
                     }
                 }
