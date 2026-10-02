@@ -31,6 +31,20 @@ public class AetherMcpcAdapter {
     private static Method nbtWriteMethod;
     private static Method nbtReadMethod;
 
+    /**
+     * Determines whether accessory slot background icons should be displayed.
+     * Only displays icons when the active GUI screen is the Aether inventory (GuiInventoryAether).
+     * Suppresses icons in all other screens (such as the Creative Survival Inventory or standard inventory).
+     */
+    public static boolean shouldShowAccessoryIcons() {
+        try {
+            if (cpw.mods.fml.common.FMLCommonHandler.instance().getSide().isClient()) {
+                return net.aetherteam.aether.client.AetherClientHelper.isAetherGuiOpen();
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
     static {
         try {
             Field uf = Unsafe.class.getDeclaredField("theUnsafe");

@@ -44,6 +44,15 @@ public class PatchAetherPlayerAccess {
             } else if ("net/aetherteam/aether/AetherPlayerTracker.class".equals(name)) {
                 System.out.println("Patching net/aetherteam/aether/AetherPlayerTracker.class...");
                 bytes = patchAetherPlayerTracker(bytes);
+            } else if ("net/aetherteam/aether/containers/SlotMoreArmor.class".equals(name)) {
+                System.out.println("Patching net/aetherteam/aether/containers/SlotMoreArmor.class...");
+                bytes = patchSlotMoreArmor(bytes);
+            } else if ("net/aetherteam/aether/client/RenderPlayerBaseAether.class".equals(name)) {
+                System.out.println("Patching net/aetherteam/aether/client/RenderPlayerBaseAether.class...");
+                bytes = patchRenderPlayerBaseAether(bytes);
+            } else if ("net/aetherteam/aether/client/gui/GuiInventoryAether.class".equals(name)) {
+                System.out.println("Patching net/aetherteam/aether/client/gui/GuiInventoryAether.class...");
+                bytes = patchGuiInventoryAether(bytes);
             }
 
             ZipEntry newEntry = new ZipEntry(name);
@@ -272,6 +281,277 @@ public class PatchAetherPlayerAccess {
                 mn.instructions.insertBefore(mn.instructions.getFirst(), guard);
                 mn.instructions.add(lReturn);
                 mn.instructions.add(new InsnNode(Opcodes.RETURN));
+            }
+        }
+
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES) {
+            @Override
+            protected String getCommonSuperClass(String type1, String type2) {
+                try {
+                    return super.getCommonSuperClass(type1, type2);
+                } catch (Throwable t) {
+                    return "java/lang/Object";
+                }
+            }
+        };
+        cn.accept(cw);
+        return cw.toByteArray();
+    }
+
+    private static byte[] patchSlotMoreArmor(byte[] classBytes) throws Exception {
+        ClassReader cr = new ClassReader(classBytes);
+        ClassNode cn = new ClassNode();
+        cr.accept(cn, 0);
+
+        for (Object mnObj : cn.methods) {
+            MethodNode mn = (MethodNode) mnObj;
+            if (("b".equals(mn.name) || "getBackgroundIconIndex".equals(mn.name)) &&
+                ("()Llx;".equals(mn.desc) || "()Lnet/minecraft/util/Icon;".equals(mn.desc))) {
+                System.out.println("  Found SlotMoreArmor." + mn.name + mn.desc + ": inserting context-aware icon check");
+
+                LabelNode lContinue = new LabelNode();
+                InsnList prefix = new InsnList();
+
+                // if (!AetherMcpcAdapter.shouldShowAccessoryIcons()) return null;
+                prefix.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                    "AetherMcpcAdapter",
+                    "shouldShowAccessoryIcons",
+                    "()Z"));
+                prefix.add(new JumpInsnNode(Opcodes.IFNE, lContinue));
+                prefix.add(new InsnNode(Opcodes.ACONST_NULL));
+                prefix.add(new InsnNode(Opcodes.ARETURN));
+                prefix.add(lContinue);
+
+                mn.instructions.insertBefore(mn.instructions.getFirst(), prefix);
+            }
+        }
+
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES) {
+            @Override
+            protected String getCommonSuperClass(String type1, String type2) {
+                try {
+                    return super.getCommonSuperClass(type1, type2);
+                } catch (Throwable t) {
+                    return "java/lang/Object";
+                }
+            }
+        };
+        cn.accept(cw);
+        return cw.toByteArray();
+    }
+
+    private static byte[] patchRenderPlayerBaseAether(byte[] classBytes) throws Exception {
+        ClassReader cr = new ClassReader(classBytes);
+        ClassNode cn = new ClassNode();
+        cr.accept(cn, 0);
+
+        for (Object mnObj : cn.methods) {
+            MethodNode mn = (MethodNode) mnObj;
+
+            // 1. Pass actual yaw (fload 8) instead of ldc -90.0F to renderPlayer.a
+            // This enables Smart Moving to recognize GUI previews (yaw == 0.0F && partialTicks == 1.0F)
+            // so the player model does not get turned around in the inventory GUI.
+            if ("a".equals(mn.name) || "renderPlayer".equals(mn.name)) {
+                if (mn.desc != null && (mn.desc.contains("DDDFF)") || mn.desc.startsWith("(Lsq;DDDFF)"))) {
+                    for (AbstractInsnNode insn = mn.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+                        if (insn.getOpcode() == Opcodes.LDC) {
+                            LdcInsnNode ldc = (LdcInsnNode) insn;
+                            if (ldc.cst instanceof Float && Math.abs(((Float) ldc.cst) - (-90.0F)) < 0.01F) {
+                                System.out.println("  Found RenderPlayerBaseAether.a ldc -90.0F: replacing with fload 8 (actual yaw)");
+                                mn.instructions.set(insn, new VarInsnNode(Opcodes.FLOAD, 8));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Rewrite a(sq, float) [renderSpecials] to clean cape render sequence
+            // Eliminates buggy unlit opaque duplicate cape pass 2 and glDepthMask(false) leak
+            if (("a".equals(mn.name) || "renderSpecials".equals(mn.name)) && "(Lsq;F)V".equals(mn.desc)) {
+                System.out.println("  Found RenderPlayerBaseAether.a(sq, float): replacing with clean cape render sequence");
+                InsnList il = new InsnList();
+
+                // super.a(player, partialTicks);
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                il.add(new VarInsnNode(Opcodes.FLOAD, 2));
+                il.add(new MethodInsnNode(Opcodes.INVOKESPECIAL,
+                    "net/aetherteam/playercore_api/cores/PlayerCoreRender",
+                    "a",
+                    "(Lsq;F)V"));
+
+                // AetherClientHelper.beforeRenderCape(player, partialTicks);
+                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                il.add(new VarInsnNode(Opcodes.FLOAD, 2));
+                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                    "net/aetherteam/aether/client/AetherClientHelper",
+                    "beforeRenderCape",
+                    "(Ljava/lang/Object;F)V"));
+
+                // this.renderCape(player, partialTicks);
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                il.add(new VarInsnNode(Opcodes.FLOAD, 2));
+                il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,
+                    "net/aetherteam/aether/client/RenderPlayerBaseAether",
+                    "renderCape",
+                    "(Lsq;F)V"));
+
+                // AetherClientHelper.afterRenderCape(partialTicks);
+                il.add(new VarInsnNode(Opcodes.FLOAD, 2));
+                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
+                    "net/aetherteam/aether/client/AetherClientHelper",
+                    "afterRenderCape",
+                    "(F)V"));
+
+                il.add(new InsnNode(Opcodes.RETURN));
+
+                mn.instructions = il;
+                mn.tryCatchBlocks.clear();
+            }
+
+            // 3. Fix glDepthMask(false) bug in renderParachute and renderFirstPersonGlow
+            if ("renderParachute".equals(mn.name) || "renderFirstPersonGlow".equals(mn.name)) {
+                for (AbstractInsnNode insn = mn.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+                    if (insn.getOpcode() == Opcodes.INVOKESTATIC) {
+                        MethodInsnNode min = (MethodInsnNode) insn;
+                        if ("glDepthMask".equals(min.name) && "(Z)V".equals(min.desc)) {
+                            AbstractInsnNode prev = insn.getPrevious();
+                            if (prev != null && prev.getOpcode() == Opcodes.ICONST_0) {
+                                System.out.println("  Found glDepthMask(false) in " + mn.name + ": changing to glDepthMask(true)");
+                                mn.instructions.set(prev, new InsnNode(Opcodes.ICONST_1));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Inject prepareAccessoryColor after all texture bindings in renderCape, renderParachute, renderFirstPersonGloves
+            if ("renderCape".equals(mn.name) || "renderParachute".equals(mn.name) || "renderFirstPersonGloves".equals(mn.name)) {
+                AbstractInsnNode insn = mn.instructions.getFirst();
+                while (insn != null) {
+                    AbstractInsnNode next = insn.getNext();
+                    if (insn.getOpcode() == Opcodes.INVOKEVIRTUAL) {
+                        MethodInsnNode min = (MethodInsnNode) insn;
+                        if ("(Ljava/lang/String;)V".equals(min.desc) &&
+                            "net/aetherteam/playercore_api/cores/PlayerCoreRender".equals(min.owner)) {
+                            System.out.println("  Found PlayerCoreRender.a(String) in " + mn.name + ": injecting prepareAccessoryColor call");
+                            InsnList colorList = new InsnList();
+                            colorList.add(new MethodInsnNode(
+                                Opcodes.INVOKESTATIC,
+                                "net/aetherteam/aether/client/AetherClientHelper",
+                                "prepareAccessoryColor",
+                                "()V"
+                            ));
+                            mn.instructions.insert(insn, colorList);
+                        }
+                    }
+                    insn = next;
+                }
+            }
+
+            // 5. In doRenderMisc: redirect rotateCorpse and inject syncModel after modelMisc.setRotationAngles
+            if ("doRenderMisc".equals(mn.name)) {
+                AbstractInsnNode insn = mn.instructions.getFirst();
+                while (insn != null) {
+                    AbstractInsnNode next = insn.getNext();
+                    if (insn.getOpcode() == Opcodes.INVOKEVIRTUAL) {
+                        MethodInsnNode min = (MethodInsnNode) insn;
+                        if (("a".equals(min.name) || "rotateCorpse".equals(min.name)) &&
+                            min.desc.endsWith(";FFF)V")) {
+                            System.out.println("  Found RenderPlayerBaseAether.doRenderMisc call to rotateCorpse: redirecting to AetherClientHelper.rotateCorpseDirect");
+                            MethodInsnNode redirect = new MethodInsnNode(
+                                Opcodes.INVOKESTATIC,
+                                "net/aetherteam/aether/client/AetherClientHelper",
+                                "rotateCorpseDirect",
+                                "(Ljava/lang/Object;Ljava/lang/Object;FFF)V"
+                            );
+                            mn.instructions.set(insn, redirect);
+                        } else if (("a".equals(min.name) || "setRotationAngles".equals(min.name)) &&
+                                   "(FFFFFFLmp;)V".equals(min.desc) &&
+                                   ("bbz".equals(min.owner) || "net/minecraft/client/model/ModelBiped".equals(min.owner))) {
+                            System.out.println("  Found modelMisc.setRotationAngles: injecting AetherClientHelper.beforeRenderAccessories call");
+                            InsnList syncList = new InsnList();
+                            syncList.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                            syncList.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                            syncList.add(new VarInsnNode(Opcodes.FLOAD, 9));
+                            syncList.add(new MethodInsnNode(
+                                Opcodes.INVOKESTATIC,
+                                "net/aetherteam/aether/client/AetherClientHelper",
+                                "beforeRenderAccessories",
+                                "(Ljava/lang/Object;Ljava/lang/Object;F)V"
+                            ));
+                            mn.instructions.insert(insn, syncList);
+                        } else if ("(Ljava/lang/String;)V".equals(min.desc) &&
+                                   "net/aetherteam/playercore_api/cores/PlayerCoreRender".equals(min.owner)) {
+                            System.out.println("  Found PlayerCoreRender.a(String) in doRenderMisc: injecting prepareAccessoryColor call");
+                            InsnList colorList = new InsnList();
+                            colorList.add(new MethodInsnNode(
+                                Opcodes.INVOKESTATIC,
+                                "net/aetherteam/aether/client/AetherClientHelper",
+                                "prepareAccessoryColor",
+                                "()V"
+                            ));
+                            mn.instructions.insert(insn, colorList);
+                        }
+                    } else if (insn.getOpcode() == Opcodes.RETURN) {
+                        if (mn.instructions.indexOf(insn) > 50) {
+                            System.out.println("  Found final return in doRenderMisc: injecting afterRenderAccessories call");
+                            InsnList afterList = new InsnList();
+                            afterList.add(new VarInsnNode(Opcodes.FLOAD, 9));
+                            afterList.add(new MethodInsnNode(
+                                Opcodes.INVOKESTATIC,
+                                "net/aetherteam/aether/client/AetherClientHelper",
+                                "afterRenderAccessories",
+                                "(F)V"
+                            ));
+                            mn.instructions.insertBefore(insn, afterList);
+                        }
+                    }
+                    insn = next;
+                }
+            }
+        }
+
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES) {
+            @Override
+            protected String getCommonSuperClass(String type1, String type2) {
+                try {
+                    return super.getCommonSuperClass(type1, type2);
+                } catch (Throwable t) {
+                    return "java/lang/Object";
+                }
+            }
+        };
+        cn.accept(cw);
+        return cw.toByteArray();
+    }
+
+    private static byte[] patchGuiInventoryAether(byte[] classBytes) throws Exception {
+        ClassReader cr = new ClassReader(classBytes);
+        ClassNode cn = new ClassNode();
+        cr.accept(cn, 0);
+
+        // Change superclass from azb (GuiContainer) to azg (GuiInventory)
+        // so that Smart Moving and other mods recognize GuiInventoryAether as an inventory GUI.
+        System.out.println("  Changing GuiInventoryAether superclass from " + cn.superName + " to azg (GuiInventory)");
+        cn.superName = "azg";
+
+        for (Object mnObj : cn.methods) {
+            MethodNode mn = (MethodNode) mnObj;
+            if ("<init>".equals(mn.name) && "(Lsq;)V".equals(mn.desc)) {
+                System.out.println("  Found GuiInventoryAether.<init>(sq): rewriting to invoke azg.<init>(sq)");
+                InsnList newInit = new InsnList();
+                newInit.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                newInit.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                newInit.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "azg", "<init>", "(Lsq;)V"));
+                newInit.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                newInit.add(new FieldInsnNode(Opcodes.PUTSTATIC, "net/aetherteam/aether/client/gui/GuiInventoryAether", "player", "Lsq;"));
+                newInit.add(new InsnNode(Opcodes.RETURN));
+
+                mn.instructions.clear();
+                mn.instructions.add(newInit);
             }
         }
 
