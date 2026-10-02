@@ -738,4 +738,88 @@ public class AetherClientHelper {
             enableLightmap();
         }
     }
+    /**
+     * Determines whether accessory slot background icons should be displayed.
+     * Only displays icons when the active GUI screen is the Aether inventory (GuiInventoryAether).
+     * Suppresses icons in all other screens (such as Creative Survival Inventory).
+     */
+    public static boolean shouldShowAccessoryIcons() {
+        try {
+            return isAetherGuiOpen();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Maps Aether accessories (such as pendants) to their authentic vibrant material colors.
+     * Pendants in Aether II share a greyscale texture template (/armor/Accessories.png) and
+     * require material color tinting to avoid rendering as plain grey.
+     */
+    public static int getAccessoryColor(Object accessory, int defaultColor) {
+        if (accessory == null) return defaultColor;
+        try {
+            if (accessory == net.aetherteam.aether.items.AetherItems.GoldenPendant) {
+                return 0xFFD700; // Gold
+            } else if (accessory == net.aetherteam.aether.items.AetherItems.ZanitePendant) {
+                return 0x9933FF; // Zanite purple
+            } else if (accessory == net.aetherteam.aether.items.AetherItems.IcePendant) {
+                return 0x66CCFF; // Ice cyan
+            } else if (accessory == net.aetherteam.aether.items.AetherItems.SwettyPendant) {
+                return 0x3388FF; // Swetty blue
+            } else if (accessory == net.aetherteam.aether.items.AetherItems.IronPendant) {
+                return 0xD8D8D8; // Silver / Iron
+            }
+        } catch (Throwable ignored) {}
+        return defaultColor;
+    }
+
+    /**
+     * Applies missing player body rotation to the standalone modelCape in RenderPlayerBaseAether.renderCape.
+     * With Smart Moving, body yaw is applied inside the model hierarchy (bipedOuter) rather than the GL matrix,
+     * leaving the cape facing North (180 deg) permanently unless rotated here.
+     */
+    public static void applyCapeRotation(Object render, Object entity, float partialTicks) {
+        if (isGuiPreview(partialTicks)) {
+            // In GUI preview, rotateCorpse already applied body yaw to the matrix
+            return;
+        }
+
+        Object smartModel = getSmartModelBase(render);
+        if (smartModel != null) {
+            try {
+                if (getOuterMethod != null) {
+                    Object outer = getOuterMethod.invoke(smartModel);
+                    if (outer != null) {
+                        float ry = rotYField != null ? rotYField.getFloat(outer) * 57.295776F : 0.0F;
+                        float rx = rotXField != null ? rotXField.getFloat(outer) * 57.295776F : 0.0F;
+                        float rz = rotZField != null ? rotZField.getFloat(outer) * 57.295776F : 0.0F;
+                        float px = pointXField != null ? pointXField.getFloat(outer) : 0.0F;
+                        float py = pointYField != null ? pointYField.getFloat(outer) : 0.0F;
+                        float pz = pointZField != null ? pointZField.getFloat(outer) : 0.0F;
+
+                        // Apply crawl/dive translation offsets if present
+                        if (Math.abs(px) > 0.001F || Math.abs(py) > 0.001F || Math.abs(pz) > 0.001F) {
+                            GL11.glTranslatef(px * 0.0625F, py * 0.0625F, pz * 0.0625F);
+                        }
+                        // Apply body yaw
+                        if (Math.abs(ry) > 0.001F) {
+                            GL11.glRotatef(-ry, 0.0F, 1.0F, 0.0F);
+                        }
+                        // Apply body crawl pitch
+                        if (Math.abs(rx) > 0.001F) {
+                            GL11.glRotatef(rx, 1.0F, 0.0F, 0.0F);
+                        }
+                        // Apply body roll
+                        if (Math.abs(rz) > 0.001F) {
+                            GL11.glRotatef(rz, 0.0F, 0.0F, 1.0F);
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                System.out.println("[AetherClientHelper] applyCapeRotation error: " + t);
+            }
+        }
+    }
 }
+

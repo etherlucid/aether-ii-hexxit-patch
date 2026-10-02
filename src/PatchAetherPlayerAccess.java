@@ -5,10 +5,10 @@ import java.util.*;
 import java.util.zip.*;
 
 /**
- * Patches Aether.class, CommonProxy.class, and AetherPlayerTracker.class to:
- * 1. Support dual-check (PlayerCoreServer for vanilla Forge, AetherMcpcAdapter for MCPC+) in Aether.getServerPlayer.
- * 2. Delegate CommonProxy.getPlayerHandler safely to Aether.getServerPlayer.
- * 3. Hook AetherPlayerTracker.onPlayerLogout to trigger AetherMcpcAdapter.onPlayerLogout on MCPC+.
+ * Patches Aether II classes for Hexxit Remix:
+ * 1. SlotMoreArmor: context-aware accessory background icon display.
+ * 2. RenderPlayerBaseAether: Smart Moving animation sync, cape rotation, lighting, depth mask fixes, and accessory color tinting.
+ * 3. GuiInventoryAether: extends GuiInventory (azg) for proper inventory preview handling.
  */
 public class PatchAetherPlayerAccess {
 
@@ -35,16 +35,7 @@ public class PatchAetherPlayerAccess {
             byte[] bytes = readAllBytes(is);
             is.close();
 
-            if ("net/aetherteam/aether/Aether.class".equals(name)) {
-                System.out.println("Patching net/aetherteam/aether/Aether.class...");
-                bytes = patchAether(bytes);
-            } else if ("net/aetherteam/aether/CommonProxy.class".equals(name)) {
-                System.out.println("Patching net/aetherteam/aether/CommonProxy.class...");
-                bytes = patchCommonProxy(bytes);
-            } else if ("net/aetherteam/aether/AetherPlayerTracker.class".equals(name)) {
-                System.out.println("Patching net/aetherteam/aether/AetherPlayerTracker.class...");
-                bytes = patchAetherPlayerTracker(bytes);
-            } else if ("net/aetherteam/aether/containers/SlotMoreArmor.class".equals(name)) {
+            if ("net/aetherteam/aether/containers/SlotMoreArmor.class".equals(name)) {
                 System.out.println("Patching net/aetherteam/aether/containers/SlotMoreArmor.class...");
                 bytes = patchSlotMoreArmor(bytes);
             } else if ("net/aetherteam/aether/client/RenderPlayerBaseAether.class".equals(name)) {
@@ -76,228 +67,6 @@ public class PatchAetherPlayerAccess {
         System.out.println(">>> PatchAetherPlayerAccess successfully applied to " + outputJar.getPath());
     }
 
-    private static byte[] patchAether(byte[] classBytes) throws Exception {
-        ClassReader cr = new ClassReader(classBytes);
-        ClassNode cn = new ClassNode();
-        cr.accept(cn, 0);
-
-        for (Object mnObj : cn.methods) {
-            MethodNode mn = (MethodNode) mnObj;
-            if ("getServerPlayer".equals(mn.name) && "(Lsq;)Lnet/aetherteam/aether/PlayerBaseAetherServer;".equals(mn.desc)) {
-                System.out.println("  Found Aether.getServerPlayer(sq): replacing bytecode with dual-check logic");
-
-                LabelNode lMcpc = new LabelNode();
-                LabelNode lNull = new LabelNode();
-
-                InsnList il = new InsnList();
-
-                // if (player == null) return null;
-                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
-                il.add(new JumpInsnNode(Opcodes.IFNULL, lNull));
-
-                // if (player instanceof PlayerCoreServer)
-                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
-                il.add(new TypeInsnNode(Opcodes.INSTANCEOF, "net/aetherteam/playercore_api/cores/PlayerCoreServer"));
-                il.add(new JumpInsnNode(Opcodes.IFEQ, lMcpc));
-
-                // Vanilla Forge path: ((PlayerCoreServer) player).getPlayerCoreObject(PlayerBaseAetherServer.class)
-                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
-                il.add(new TypeInsnNode(Opcodes.CHECKCAST, "net/aetherteam/playercore_api/cores/PlayerCoreServer"));
-                il.add(new LdcInsnNode(Type.getType("Lnet/aetherteam/aether/PlayerBaseAetherServer;")));
-                il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,
-                    "net/aetherteam/playercore_api/cores/PlayerCoreServer",
-                    "getPlayerCoreObject",
-                    "(Ljava/lang/Class;)Lnet/aetherteam/playercore_api/cores/PlayerCoreServer;"));
-                il.add(new TypeInsnNode(Opcodes.CHECKCAST, "net/aetherteam/aether/PlayerBaseAetherServer"));
-                il.add(new InsnNode(Opcodes.ARETURN));
-
-                // MCPC+ path:
-                il.add(lMcpc);
-                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
-                il.add(new TypeInsnNode(Opcodes.INSTANCEOF, "jc"));
-                il.add(new JumpInsnNode(Opcodes.IFEQ, lNull));
-
-                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
-                il.add(new TypeInsnNode(Opcodes.CHECKCAST, "jc"));
-                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                    "AetherMcpcAdapter",
-                    "getServerPlayer",
-                    "(Ljc;)Lnet/aetherteam/aether/PlayerBaseAetherServer;"));
-                il.add(new InsnNode(Opcodes.ARETURN));
-
-                // Null return
-                il.add(lNull);
-                il.add(new InsnNode(Opcodes.ACONST_NULL));
-                il.add(new InsnNode(Opcodes.ARETURN));
-
-                mn.instructions = il;
-                mn.tryCatchBlocks.clear();
-            }
-        }
-
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES) {
-            @Override
-            protected String getCommonSuperClass(String type1, String type2) {
-                try {
-                    return super.getCommonSuperClass(type1, type2);
-                } catch (Throwable t) {
-                    return "java/lang/Object";
-                }
-            }
-        };
-        cn.accept(cw);
-        return cw.toByteArray();
-    }
-
-    private static byte[] patchCommonProxy(byte[] classBytes) throws Exception {
-        ClassReader cr = new ClassReader(classBytes);
-        ClassNode cn = new ClassNode();
-        cr.accept(cn, 0);
-
-        for (Object mnObj : cn.methods) {
-            MethodNode mn = (MethodNode) mnObj;
-            if ("getPlayerHandler".equals(mn.name) && "(Lsq;)Lnet/aetherteam/aether/AetherCommonPlayerHandler;".equals(mn.desc)) {
-                System.out.println("  Found CommonProxy.getPlayerHandler(sq): replacing bytecode with safe delegation");
-
-                LabelNode lNull = new LabelNode();
-                InsnList il = new InsnList();
-
-                // PlayerBaseAetherServer base = Aether.getServerPlayer(player);
-                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
-                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                    "net/aetherteam/aether/Aether",
-                    "getServerPlayer",
-                    "(Lsq;)Lnet/aetherteam/aether/PlayerBaseAetherServer;"));
-                il.add(new InsnNode(Opcodes.DUP));
-                il.add(new JumpInsnNode(Opcodes.IFNULL, lNull));
-
-                // return base.getPlayerHandler();
-                il.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,
-                    "net/aetherteam/aether/PlayerBaseAetherServer",
-                    "getPlayerHandler",
-                    "()Lnet/aetherteam/aether/AetherCommonPlayerHandler;"));
-                il.add(new InsnNode(Opcodes.ARETURN));
-
-                // lNull:
-                il.add(lNull);
-                il.add(new InsnNode(Opcodes.POP));
-                il.add(new InsnNode(Opcodes.ACONST_NULL));
-                il.add(new InsnNode(Opcodes.ARETURN));
-
-                mn.instructions = il;
-                mn.tryCatchBlocks.clear();
-            }
-        }
-
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES) {
-            @Override
-            protected String getCommonSuperClass(String type1, String type2) {
-                try {
-                    return super.getCommonSuperClass(type1, type2);
-                } catch (Throwable t) {
-                    return "java/lang/Object";
-                }
-            }
-        };
-        cn.accept(cw);
-        return cw.toByteArray();
-    }
-
-    private static byte[] patchAetherPlayerTracker(byte[] classBytes) throws Exception {
-        ClassReader cr = new ClassReader(classBytes);
-        ClassNode cn = new ClassNode();
-        cr.accept(cn, 0);
-
-        for (Object mnObj : cn.methods) {
-            MethodNode mn = (MethodNode) mnObj;
-            if ("onPlayerLogout".equals(mn.name) && "(Lsq;)V".equals(mn.desc)) {
-                System.out.println("  Found AetherPlayerTracker.onPlayerLogout(sq): inserting MCPC+ logout hook and null-guard");
-
-                // 1. Hook at the very beginning of onPlayerLogout
-                LabelNode lSkip = new LabelNode();
-                InsnList hook = new InsnList();
-
-                // if (player instanceof jc && !(player instanceof PlayerCoreServer))
-                hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
-                hook.add(new TypeInsnNode(Opcodes.INSTANCEOF, "jc"));
-                hook.add(new JumpInsnNode(Opcodes.IFEQ, lSkip));
-
-                hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
-                hook.add(new TypeInsnNode(Opcodes.INSTANCEOF, "net/aetherteam/playercore_api/cores/PlayerCoreServer"));
-                hook.add(new JumpInsnNode(Opcodes.IFNE, lSkip));
-
-                // AetherMcpcAdapter.onPlayerLogout((jc) player);
-                hook.add(new VarInsnNode(Opcodes.ALOAD, 1));
-                hook.add(new TypeInsnNode(Opcodes.CHECKCAST, "jc"));
-                hook.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                    "AetherMcpcAdapter",
-                    "onPlayerLogout",
-                    "(Ljc;)V"));
-
-                hook.add(lSkip);
-                mn.instructions.insertBefore(mn.instructions.getFirst(), hook);
-
-                // 2. Insert null-guard before the first Aether.getServerPlayer call (instruction ~148)
-                for (int i = 0; i < mn.instructions.size(); i++) {
-                    AbstractInsnNode insn = mn.instructions.get(i);
-                    if (insn instanceof MethodInsnNode) {
-                        MethodInsnNode min = (MethodInsnNode) insn;
-                        if ("net/aetherteam/aether/Aether".equals(min.owner) && "getServerPlayer".equals(min.name)) {
-                            // Find the ALOAD_1 instruction immediately preceding this sequence
-                            AbstractInsnNode prev = insn.getPrevious();
-                            while (prev != null && prev.getOpcode() != Opcodes.ALOAD) {
-                                prev = prev.getPrevious();
-                            }
-                            if (prev != null) {
-                                LabelNode lReturn = new LabelNode();
-                                InsnList guard = new InsnList();
-                                guard.add(new VarInsnNode(Opcodes.ALOAD, 1));
-                                guard.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                                    "net/aetherteam/aether/Aether",
-                                    "getServerPlayer",
-                                    "(Lsq;)Lnet/aetherteam/aether/PlayerBaseAetherServer;"));
-                                guard.add(new JumpInsnNode(Opcodes.IFNULL, lReturn));
-
-                                mn.instructions.insertBefore(prev, guard);
-                                mn.instructions.add(lReturn);
-                                mn.instructions.add(new InsnNode(Opcodes.RETURN));
-                                System.out.println("  Inserted null-guard in onPlayerLogout before getServerPlayer");
-                            }
-                            break;
-                        }
-                    }
-                }
-            } else if ("updatePlayerClientInfo".equals(mn.name) && "(Ljc;Z)V".equals(mn.desc)) {
-                System.out.println("  Found AetherPlayerTracker.updatePlayerClientInfo: inserting null-guard");
-                LabelNode lReturn = new LabelNode();
-                InsnList guard = new InsnList();
-                guard.add(new VarInsnNode(Opcodes.ALOAD, 1));
-                guard.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                    "net/aetherteam/aether/Aether",
-                    "getServerPlayer",
-                    "(Lsq;)Lnet/aetherteam/aether/PlayerBaseAetherServer;"));
-                guard.add(new JumpInsnNode(Opcodes.IFNULL, lReturn));
-
-                mn.instructions.insertBefore(mn.instructions.getFirst(), guard);
-                mn.instructions.add(lReturn);
-                mn.instructions.add(new InsnNode(Opcodes.RETURN));
-            }
-        }
-
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES) {
-            @Override
-            protected String getCommonSuperClass(String type1, String type2) {
-                try {
-                    return super.getCommonSuperClass(type1, type2);
-                } catch (Throwable t) {
-                    return "java/lang/Object";
-                }
-            }
-        };
-        cn.accept(cw);
-        return cw.toByteArray();
-    }
-
     private static byte[] patchSlotMoreArmor(byte[] classBytes) throws Exception {
         ClassReader cr = new ClassReader(classBytes);
         ClassNode cn = new ClassNode();
@@ -312,9 +81,9 @@ public class PatchAetherPlayerAccess {
                 LabelNode lContinue = new LabelNode();
                 InsnList prefix = new InsnList();
 
-                // if (!AetherMcpcAdapter.shouldShowAccessoryIcons()) return null;
+                // if (!AetherClientHelper.shouldShowAccessoryIcons()) return null;
                 prefix.add(new MethodInsnNode(Opcodes.INVOKESTATIC,
-                    "AetherMcpcAdapter",
+                    "net/aetherteam/aether/client/AetherClientHelper",
                     "shouldShowAccessoryIcons",
                     "()Z"));
                 prefix.add(new JumpInsnNode(Opcodes.IFNE, lContinue));
@@ -451,7 +220,32 @@ public class PatchAetherPlayerAccess {
                 }
             }
 
-            // 5. In doRenderMisc: redirect rotateCorpse and inject syncModel after modelMisc.setRotationAngles
+            // 4b. In renderCape: inject applyCapeRotation after GL11.glPushMatrix()
+            if ("renderCape".equals(mn.name)) {
+                for (AbstractInsnNode insn = mn.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+                    if (insn.getOpcode() == Opcodes.INVOKESTATIC) {
+                        MethodInsnNode min = (MethodInsnNode) insn;
+                        if ("glPushMatrix".equals(min.name) && "()V".equals(min.desc) &&
+                            ("org/lwjgl/opengl/GL11".equals(min.owner) || min.owner.endsWith("GL11"))) {
+                            System.out.println("  Found GL11.glPushMatrix in renderCape: injecting AetherClientHelper.applyCapeRotation call");
+                            InsnList capeList = new InsnList();
+                            capeList.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                            capeList.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                            capeList.add(new VarInsnNode(Opcodes.FLOAD, 2));
+                            capeList.add(new MethodInsnNode(
+                                Opcodes.INVOKESTATIC,
+                                "net/aetherteam/aether/client/AetherClientHelper",
+                                "applyCapeRotation",
+                                "(Ljava/lang/Object;Ljava/lang/Object;F)V"
+                            ));
+                            mn.instructions.insert(insn, capeList);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 5. In doRenderMisc: redirect rotateCorpse, inject syncModel, and inject getAccessoryColor
             if ("doRenderMisc".equals(mn.name)) {
                 AbstractInsnNode insn = mn.instructions.getFirst();
                 while (insn != null) {
@@ -494,6 +288,19 @@ public class PatchAetherPlayerAccess {
                                 "()V"
                             ));
                             mn.instructions.insert(insn, colorList);
+                        } else if ("a".equals(min.name) && "(Lwm;I)I".equals(min.desc) &&
+                                   (min.owner.contains("ItemAccessory") || "wk".equals(min.owner))) {
+                            System.out.println("  Found ItemAccessory.a in doRenderMisc: injecting getAccessoryColor call");
+                            InsnList colorHook = new InsnList();
+                            colorHook.add(new VarInsnNode(Opcodes.ALOAD, 18));
+                            colorHook.add(new InsnNode(Opcodes.SWAP));
+                            colorHook.add(new MethodInsnNode(
+                                Opcodes.INVOKESTATIC,
+                                "net/aetherteam/aether/client/AetherClientHelper",
+                                "getAccessoryColor",
+                                "(Ljava/lang/Object;I)I"
+                            ));
+                            mn.instructions.insert(insn, colorHook);
                         }
                     } else if (insn.getOpcode() == Opcodes.RETURN) {
                         if (mn.instructions.indexOf(insn) > 50) {
