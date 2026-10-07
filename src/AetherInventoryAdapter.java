@@ -45,16 +45,21 @@ public class AetherInventoryAdapter {
     }
 
     public static boolean shouldReplaceSurvivalGui(Object screen) {
-        if (screen == null) return false;
-        if (screen.getClass().getName().contains("GuiInventoryAether")) return false;
+        if (screen == null) return true;
         String name = screen.getClass().getName();
-        boolean matches = name.equals("azg") || 
-                          name.equals("net.minecraft.client.gui.inventory.GuiInventory") || 
-                          name.endsWith("GuiInventory");
-        if (matches) {
-            System.out.println(">>> AETHER ADAPTER: Replacing Survival GUI (" + name + ") with GuiInventoryAether <<<");
+        if (name.contains("GuiInventoryAether")) return false;
+        if (name.contains("GuiChat") || 
+            name.contains("GuiIngameMenu") || 
+            name.contains("GuiOptions") || 
+            name.contains("GuiMainMenu") || 
+            name.contains("GuiEditSign") || 
+            name.contains("GuiSleepMP") || 
+            name.contains("GuiCommandBlock") || 
+            name.contains("GuiScreenBook") ||
+            name.contains("GuiGameOver")) {
+            return false;
         }
-        return matches;
+        return true;
     }
 
     public static boolean shouldReplaceCreativeGui(Object screen) {

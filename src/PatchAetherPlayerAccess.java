@@ -386,39 +386,56 @@ public class PatchAetherPlayerAccess {
 
         for (Object mnObj : cn.methods) {
             MethodNode mn = (MethodNode) mnObj;
-            if (mn.name.equals("tickEnd") || mn.name.equals("tick") || mn.name.equals("a") || mn.desc.contains("TickType")) {
-                System.out.println("  Patching ClientTickHandler." + mn.name + mn.desc + "...");
+            if ("tickEnd".equals(mn.name) || "tick".equals(mn.name) || mn.desc.contains("TickType")) {
                 for (int i = 0; i < mn.instructions.size(); i++) {
                     AbstractInsnNode insn = mn.instructions.get(i);
-                    if (insn instanceof IntInsnNode && ((IntInsnNode) insn).operand == 23) {
-                        System.out.println("    Found BIPUSH 23 at insn " + i);
-                        int newInstIdx = -1;
-                        LabelNode targetLabel = null;
-                        for (int k = i + 1; k < Math.min(i + 80, mn.instructions.size()); k++) {
-                            AbstractInsnNode next = mn.instructions.get(k);
-                            if (next instanceof TypeInsnNode && next.getOpcode() == Opcodes.NEW &&
-                                "net/aetherteam/aether/client/gui/GuiInventoryAether".equals(((TypeInsnNode) next).desc)) {
-                                newInstIdx = k;
-                                for (int L = k - 1; L >= i; L--) {
-                                    if (mn.instructions.get(L) instanceof LabelNode) {
-                                        targetLabel = (LabelNode) mn.instructions.get(L);
-                                        break;
-                                    }
+                    if (insn instanceof LdcInsnNode) {
+                        LdcInsnNode ldc = (LdcInsnNode) insn;
+                        if ("azg".equals(ldc.cst) || "net.minecraft.client.gui.inventory.GuiInventory".equals(ldc.cst)) {
+                            System.out.println("  Found LDC " + ldc.cst + " in ClientTickHandler at insn " + i);
+                            int ifnullIdx = -1;
+                            int getClassIdx = -1;
+                            int equalsIdx = -1;
+                            int ifeqIdx = -1;
+
+                            for (int k = i - 1; k >= Math.max(0, i - 10); k--) {
+                                AbstractInsnNode prev = mn.instructions.get(k);
+                                if (prev instanceof MethodInsnNode && "getClass".equals(((MethodInsnNode) prev).name)) {
+                                    getClassIdx = k;
                                 }
-                                break;
+                                if (prev instanceof JumpInsnNode && prev.getOpcode() == Opcodes.IFNULL) {
+                                    ifnullIdx = k;
+                                }
                             }
-                        }
-                        if (targetLabel != null) {
-                            System.out.println("    Found targetLabel for GuiInventoryAether creation: " + targetLabel);
-                            for (int j = i + 1; j < newInstIdx; j++) {
-                                AbstractInsnNode next = mn.instructions.get(j);
-                                if (next instanceof JumpInsnNode) {
-                                    JumpInsnNode jin = (JumpInsnNode) next;
-                                    if (jin.getOpcode() == Opcodes.IFNULL || jin.getOpcode() == Opcodes.IFEQ) {
-                                        System.out.println("      Redirecting jump opcode " + jin.getOpcode() + " at insn " + j + " to targetLabel");
-                                        jin.label = targetLabel;
-                                    }
+                            for (int j = i + 1; j < Math.min(i + 10, mn.instructions.size()); j++) {
+                                AbstractInsnNode nextInsn = mn.instructions.get(j);
+                                if (nextInsn instanceof MethodInsnNode && "equals".equals(((MethodInsnNode) nextInsn).name)) {
+                                    equalsIdx = j;
                                 }
+                                if (equalsIdx != -1 && nextInsn instanceof JumpInsnNode && nextInsn.getOpcode() == Opcodes.IFEQ) {
+                                    ifeqIdx = j;
+                                    break;
+                                }
+                            }
+
+                            if (ifnullIdx != -1 && ifeqIdx != -1) {
+                                System.out.println("  Patching ClientTickHandler instruction range " + ifnullIdx + " to " + ifeqIdx);
+                                JumpInsnNode originalIfeq = (JumpInsnNode) mn.instructions.get(ifeqIdx);
+                                LabelNode targetLabel = originalIfeq.label;
+
+                                mn.instructions.set(mn.instructions.get(ifnullIdx), new MethodInsnNode(
+                                    Opcodes.INVOKESTATIC,
+                                    "AetherInventoryAdapter",
+                                    "shouldReplaceSurvivalGui",
+                                    "(Ljava/lang/Object;)Z"
+                                ));
+                                mn.instructions.set(mn.instructions.get(ifnullIdx + 1), new JumpInsnNode(Opcodes.IFEQ, targetLabel));
+
+                                for (int idx = ifnullIdx + 2; idx <= ifeqIdx; idx++) {
+                                    mn.instructions.set(mn.instructions.get(idx), new InsnNode(Opcodes.NOP));
+                                }
+                                System.out.println("  Successfully patched ClientTickHandler!");
+                                break;
                             }
                         }
                     }
