@@ -44,6 +44,9 @@ public class PatchAetherPlayerAccess {
             } else if ("net/aetherteam/aether/client/gui/GuiInventoryAether.class".equals(name)) {
                 System.out.println("Patching net/aetherteam/aether/client/gui/GuiInventoryAether.class...");
                 bytes = patchGuiInventoryAether(bytes);
+            } else if ("net/aetherteam/aether/client/ClientTickHandler.class".equals(name)) {
+                System.out.println("Patching net/aetherteam/aether/client/ClientTickHandler.class...");
+                bytes = patchClientTickHandler(bytes);
             }
 
             ZipEntry newEntry = new ZipEntry(name);
@@ -372,6 +375,39 @@ public class PatchAetherPlayerAccess {
                 }
             }
         };
+        cn.accept(cw);
+        return cw.toByteArray();
+    }
+
+    private static byte[] patchClientTickHandler(byte[] classBytes) throws Exception {
+        ClassReader cr = new ClassReader(classBytes);
+        ClassNode cn = new ClassNode();
+        cr.accept(cn, 0);
+
+        for (Object mnObj : cn.methods) {
+            MethodNode mn = (MethodNode) mnObj;
+            if (mn.name.equals("tickEnd") || mn.name.equals("tick") || mn.name.equals("a") || mn.desc.contains("TickType")) {
+                System.out.println("  Patching ClientTickHandler." + mn.name + mn.desc + "...");
+                for (int i = 0; i < mn.instructions.size(); i++) {
+                    AbstractInsnNode insn = mn.instructions.get(i);
+                    if (insn instanceof IntInsnNode && ((IntInsnNode) insn).operand == 23) {
+                        System.out.println("    Found BIPUSH 23 at insn " + i);
+                        for (int j = i + 1; j < Math.min(i + 30, mn.instructions.size()); j++) {
+                            AbstractInsnNode next = mn.instructions.get(j);
+                            if (next instanceof JumpInsnNode) {
+                                JumpInsnNode jin = (JumpInsnNode) next;
+                                if (jin.getOpcode() == Opcodes.IFNULL || jin.getOpcode() == Opcodes.IFEQ) {
+                                    System.out.println("      Replacing jump opcode " + jin.getOpcode() + " at insn " + j + " with NOP");
+                                    mn.instructions.set(jin, new InsnNode(Opcodes.NOP));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         cn.accept(cw);
         return cw.toByteArray();
     }
