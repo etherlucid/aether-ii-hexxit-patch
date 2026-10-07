@@ -392,13 +392,32 @@ public class PatchAetherPlayerAccess {
                     AbstractInsnNode insn = mn.instructions.get(i);
                     if (insn instanceof IntInsnNode && ((IntInsnNode) insn).operand == 23) {
                         System.out.println("    Found BIPUSH 23 at insn " + i);
-                        for (int j = i + 1; j < Math.min(i + 30, mn.instructions.size()); j++) {
-                            AbstractInsnNode next = mn.instructions.get(j);
-                            if (next instanceof JumpInsnNode) {
-                                JumpInsnNode jin = (JumpInsnNode) next;
-                                if (jin.getOpcode() == Opcodes.IFNULL || jin.getOpcode() == Opcodes.IFEQ) {
-                                    System.out.println("      Replacing jump opcode " + jin.getOpcode() + " at insn " + j + " with NOP");
-                                    mn.instructions.set(jin, new InsnNode(Opcodes.NOP));
+                        int newInstIdx = -1;
+                        LabelNode targetLabel = null;
+                        for (int k = i + 1; k < Math.min(i + 80, mn.instructions.size()); k++) {
+                            AbstractInsnNode next = mn.instructions.get(k);
+                            if (next instanceof TypeInsnNode && next.getOpcode() == Opcodes.NEW &&
+                                "net/aetherteam/aether/client/gui/GuiInventoryAether".equals(((TypeInsnNode) next).desc)) {
+                                newInstIdx = k;
+                                for (int L = k - 1; L >= i; L--) {
+                                    if (mn.instructions.get(L) instanceof LabelNode) {
+                                        targetLabel = (LabelNode) mn.instructions.get(L);
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        if (targetLabel != null) {
+                            System.out.println("    Found targetLabel for GuiInventoryAether creation: " + targetLabel);
+                            for (int j = i + 1; j < newInstIdx; j++) {
+                                AbstractInsnNode next = mn.instructions.get(j);
+                                if (next instanceof JumpInsnNode) {
+                                    JumpInsnNode jin = (JumpInsnNode) next;
+                                    if (jin.getOpcode() == Opcodes.IFNULL || jin.getOpcode() == Opcodes.IFEQ) {
+                                        System.out.println("      Redirecting jump opcode " + jin.getOpcode() + " at insn " + j + " to targetLabel");
+                                        jin.label = targetLabel;
+                                    }
                                 }
                             }
                         }
