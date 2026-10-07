@@ -28,9 +28,9 @@ rm -rf /tmp/build_out
 mkdir -p /tmp/build_out
 mkdir -p "$SCRIPT_DIR/mods"
 
-# 1. Compile AetherClientHelper with Java 7 target (bytecode version 51)
-echo "[1/4] Compiling AetherClientHelper (Java 7 target)..."
-$JAVAC -source 7 -target 7 -cp "$MC_JAR:$COREMOD_JAR:$BASE_JAR:$LWJGL_JAR" -d /tmp/build_out src/AetherClientHelper.java
+# 1. Compile AetherClientHelper and AetherInventoryAdapter with Java 7 target (bytecode version 51)
+echo "[1/4] Compiling AetherClientHelper and AetherInventoryAdapter (Java 7 target)..."
+$JAVAC -source 7 -target 7 -cp "$MC_JAR:$COREMOD_JAR:$BASE_JAR:$LWJGL_JAR" -d /tmp/build_out src/AetherClientHelper.java src/AetherInventoryAdapter.java
 
 # 2. Compile ASM Patcher
 echo "[2/4] Compiling ASM Patcher..."
@@ -40,10 +40,10 @@ $JAVAC -cp "$ASM_JAR" -d /tmp/build_out src/PatchAetherPlayerAccess.java
 echo "[3/4] Patching SlotMoreArmor, RenderPlayerBaseAether, GuiInventoryAether, and ClientTickHandler..."
 $JAVA -cp "/tmp/build_out:$ASM_JAR:$MC_JAR:$COREMOD_JAR:$BASE_JAR" PatchAetherPlayerAccess "$BASE_JAR" "$TARGET_JAR"
 
-# 4. Inject AetherClientHelper into the target mod JAR
-echo "[4/4] Injecting AetherClientHelper into $TARGET_JAR..."
+# 4. Inject helper classes into the target mod JAR
+echo "[4/4] Injecting AetherClientHelper and AetherInventoryAdapter into $TARGET_JAR..."
 cd /tmp/build_out
-$JAR uf "$TARGET_JAR" net/aetherteam/aether/client/AetherClientHelper*.class
+$JAR uf "$TARGET_JAR" net/aetherteam/aether/client/AetherClientHelper*.class AetherInventoryAdapter*.class
 cd "$SCRIPT_DIR"
 
 # Deploy to client instance
