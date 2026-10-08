@@ -468,18 +468,36 @@ public class AetherInventoryAdapter {
 
         List slots = getSlots(containerObj);
         if (slots == null) return;
+
+        // 2x2 Crafting Result (0) & Matrix (1..4)
         if (slots.size() > 0) setSlotPos(slots.get(0), 144, 36);
         if (slots.size() > 1) setSlotPos(slots.get(1), 88, 26);
         if (slots.size() > 2) setSlotPos(slots.get(2), 106, 26);
         if (slots.size() > 3) setSlotPos(slots.get(3), 88, 44);
         if (slots.size() > 4) setSlotPos(slots.get(4), 106, 44);
 
+        // Armor Slots (5..8)
         if (slots.size() > 5) setSlotPos(slots.get(5), 8, 8);
         if (slots.size() > 6) setSlotPos(slots.get(6), 8, 26);
         if (slots.size() > 7) setSlotPos(slots.get(7), 8, 44);
         if (slots.size() > 8) setSlotPos(slots.get(8), 8, 62);
 
-        for (int i = 9; i < slots.size(); i++) {
+        // Main Inventory Slots (9..35)
+        for (int i = 9; i < Math.min(36, slots.size()); i++) {
+            int k = i - 9;
+            int col = k % 9;
+            int row = k / 9;
+            setSlotPos(slots.get(i), 8 + col * 18, 84 + row * 18);
+        }
+
+        // Hotbar Slots (36..44)
+        for (int i = 36; i < Math.min(45, slots.size()); i++) {
+            int col = i - 36;
+            setSlotPos(slots.get(i), 8 + col * 18, 142);
+        }
+
+        // Extra Mod / Aether Accessory Slots (>= 45) -> Hide offscreen when in Vanilla tab
+        for (int i = 45; i < slots.size(); i++) {
             setSlotPos(slots.get(i), -9999, -9999);
         }
     }
@@ -490,16 +508,32 @@ public class AetherInventoryAdapter {
         if (slots == null) return;
 
         if (isAether) {
+            // Crafting Result & 2x2 Matrix
             if (slots.size() > 0) setSlotPos(slots.get(0), 134, 62);
             if (slots.size() > 1) setSlotPos(slots.get(1), 125, 8);
             if (slots.size() > 2) setSlotPos(slots.get(2), 143, 8);
             if (slots.size() > 3) setSlotPos(slots.get(3), 125, 26);
             if (slots.size() > 4) setSlotPos(slots.get(4), 143, 26);
 
+            // Armor Slots
             if (slots.size() > 5) setSlotPos(slots.get(5), 62, 8);
             if (slots.size() > 6) setSlotPos(slots.get(6), 62, 26);
             if (slots.size() > 7) setSlotPos(slots.get(7), 62, 44);
             if (slots.size() > 8) setSlotPos(slots.get(8), 62, 62);
+
+            // Main Inventory Slots (9..35)
+            for (int i = 9; i < Math.min(36, slots.size()); i++) {
+                int k = i - 9;
+                int col = k % 9;
+                int row = k / 9;
+                setSlotPos(slots.get(i), 8 + col * 18, 84 + row * 18);
+            }
+
+            // Hotbar Slots (36..44)
+            for (int i = 36; i < Math.min(45, slots.size()); i++) {
+                int col = i - 36;
+                setSlotPos(slots.get(i), 8 + col * 18, 142);
+            }
         } else {
             applyVanillaSlots(containerObj);
         }
