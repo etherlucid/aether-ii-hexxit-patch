@@ -510,6 +510,58 @@ public class AetherInventoryAdapter {
         return -1;
     }
 
+    private static long lastLogTime = 0;
+
+    private static int getSlotX(Object slotObj) {
+        if (slotObj == null) return -999;
+        Class<?> clazz = slotObj.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                String fname = f.getName();
+                if (fname.equals("h") || fname.equals("xDisplayPosition") || fname.equals("field_75223_e")) {
+                    try {
+                        f.setAccessible(true);
+                        return f.getInt(slotObj);
+                    } catch (Throwable t) {}
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return -999;
+    }
+
+    private static int getSlotY(Object slotObj) {
+        if (slotObj == null) return -999;
+        Class<?> clazz = slotObj.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                String fname = f.getName();
+                if (fname.equals("i") || fname.equals("yDisplayPosition") || fname.equals("field_75221_f")) {
+                    try {
+                        f.setAccessible(true);
+                        return f.getInt(slotObj);
+                    } catch (Throwable t) {}
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return -999;
+    }
+
+    private static Object getSlotStack(Object slotObj) {
+        if (slotObj == null) return null;
+        try {
+            java.lang.reflect.Method m = slotObj.getClass().getMethod("c");
+            return m.invoke(slotObj);
+        } catch (Throwable t) {
+            try {
+                java.lang.reflect.Method m = slotObj.getClass().getMethod("getStack");
+                return m.invoke(slotObj);
+            } catch (Throwable t2) {}
+        }
+        return null;
+    }
+
     public static void applyVanillaSlots(Object containerObj) {
         setAetherLayout(containerObj, false);
     }
@@ -529,6 +581,28 @@ public class AetherInventoryAdapter {
 
         List slots = getSlots(containerObj);
         if (slots == null || slots.isEmpty()) return;
+
+        long now = System.currentTimeMillis();
+        if (now - lastLogTime > 2000) {
+            lastLogTime = now;
+            System.out.println("=== AETHER ADAPTER DIAGNOSTIC LOG ===");
+            Object currentScreen = getCurrentScreen();
+            System.out.println("Screen: " + (currentScreen != null ? currentScreen.getClass().getName() : "null") + " | isAether: " + isAether);
+            System.out.println("Container: " + containerObj.getClass().getName() + " | Slots Count: " + slots.size());
+            for (int i = 0; i < Math.min(slots.size(), 60); i++) {
+                Object s = slots.get(i);
+                if (s == null) continue;
+                int slotNum = getSlotNumber(s);
+                int slotIdx = getSlotIndex(s);
+                Object inv = getSlotInventory(s);
+                String invName = (inv != null) ? inv.getClass().getSimpleName() : "null";
+                int x = getSlotX(s);
+                int y = getSlotY(s);
+                Object stack = getSlotStack(s);
+                System.out.println("  Slot[" + i + "]: class=" + s.getClass().getSimpleName() + " num=" + slotNum + " invIdx=" + slotIdx + " inv=" + invName + " x=" + x + " y=" + y + " stack=" + (stack != null ? stack.toString() : "empty"));
+            }
+            System.out.println("=====================================");
+        }
 
         int accIdx = 0;
 
