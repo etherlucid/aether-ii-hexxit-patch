@@ -381,7 +381,72 @@ public class PatchAetherPlayerAccess {
     }
 
     private static byte[] patchClientTickHandler(byte[] classBytes) throws Exception {
-        return classBytes;
+        ClassReader cr = new ClassReader(classBytes);
+        ClassNode cn = new ClassNode();
+        cr.accept(cn, 0);
+
+        for (Object mnObj : cn.methods) {
+            MethodNode mn = (MethodNode) mnObj;
+            if ("tickEnd".equals(mn.name) || "tick".equals(mn.name) || mn.desc.contains("TickType")) {
+                for (int i = 0; i < mn.instructions.size(); i++) {
+                    AbstractInsnNode insn = mn.instructions.get(i);
+                    if (insn instanceof LdcInsnNode) {
+                        LdcInsnNode ldc = (LdcInsnNode) insn;
+                        if ("azg".equals(ldc.cst) || "net.minecraft.client.gui.inventory.GuiInventory".equals(ldc.cst)) {
+                            System.out.println("  Found LDC " + ldc.cst + " in ClientTickHandler at insn " + i);
+                            int ifnullIdx = -1;
+                            int getClassIdx = -1;
+                            int equalsIdx = -1;
+                            int ifeqIdx = -1;
+
+                            for (int k = i - 1; k >= Math.max(0, i - 10); k--) {
+                                AbstractInsnNode prev = mn.instructions.get(k);
+                                if (prev instanceof MethodInsnNode && "getClass".equals(((MethodInsnNode) prev).name)) {
+                                    getClassIdx = k;
+                                }
+                                if (prev instanceof JumpInsnNode && prev.getOpcode() == Opcodes.IFNULL) {
+                                    ifnullIdx = k;
+                                }
+                            }
+                            for (int j = i + 1; j < Math.min(i + 10, mn.instructions.size()); j++) {
+                                AbstractInsnNode nextInsn = mn.instructions.get(j);
+                                if (nextInsn instanceof MethodInsnNode && "equals".equals(((MethodInsnNode) nextInsn).name)) {
+                                    equalsIdx = j;
+                                }
+                                if (equalsIdx != -1 && nextInsn instanceof JumpInsnNode && nextInsn.getOpcode() == Opcodes.IFEQ) {
+                                    ifeqIdx = j;
+                                    break;
+                                }
+                            }
+
+                            if (ifnullIdx != -1 && ifeqIdx != -1) {
+                                System.out.println("  Patching ClientTickHandler instruction range " + ifnullIdx + " to " + ifeqIdx);
+                                JumpInsnNode originalIfeq = (JumpInsnNode) mn.instructions.get(ifeqIdx);
+                                LabelNode targetLabel = originalIfeq.label;
+
+                                mn.instructions.set(mn.instructions.get(ifnullIdx), new MethodInsnNode(
+                                    Opcodes.INVOKESTATIC,
+                                    "AetherInventoryAdapter",
+                                    "shouldReplaceSurvivalGui",
+                                    "(Ljava/lang/Object;)Z"
+                                ));
+                                mn.instructions.set(mn.instructions.get(ifnullIdx + 1), new JumpInsnNode(Opcodes.IFEQ, targetLabel));
+
+                                for (int idx = ifnullIdx + 2; idx <= ifeqIdx; idx++) {
+                                    mn.instructions.set(mn.instructions.get(idx), new InsnNode(Opcodes.NOP));
+                                }
+                                System.out.println("  Successfully patched ClientTickHandler!");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        cn.accept(cw);
+        return cw.toByteArray();
     }
 
     private static byte[] readAllBytes(InputStream is) throws IOException {

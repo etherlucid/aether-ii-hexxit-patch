@@ -45,8 +45,20 @@ public class AetherInventoryAdapter {
         return false;
     }
 
+    /**
+     * Called by the patched ClientTickHandler when the Aether inventory key ('I') is pressed
+     * (edge-triggered, once per key press). Returns true if the Aether inventory should open.
+     * Whitelist: in-world (no screen), vanilla inventory, and Tinkers' Construct inventory screens.
+     * Anything else (chat, menus, chests, signs, books, creative...) is left alone.
+     */
     public static boolean shouldReplaceSurvivalGui(Object screen) {
-        return false;
+        if (screen == null) return true;
+        String name = screen.getClass().getName();
+        if (name.contains("GuiInventoryAether")) return false;
+        return name.equals("azg")
+            || name.endsWith(".GuiInventory")
+            || name.contains("ArmorExtendedGui")
+            || name.contains("KnapsackGui");
     }
 
     public static void initAetherGui(Object guiObj, Object playerObj) {
