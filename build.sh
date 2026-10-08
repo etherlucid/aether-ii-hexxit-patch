@@ -46,13 +46,16 @@ cd /tmp/build_out
 $JAR uf "$TARGET_JAR" net/aetherteam/aether/client/AetherClientHelper*.class AetherInventoryAdapter*.class
 cd "$SCRIPT_DIR"
 
-# Deploy to client instance
-if [ -d "$CLIENT_MODS_DIR" ]; then
-    echo "Deploying to client instance: $CLIENT_MODS_DIR..."
-    rm -f "$CLIENT_MODS_DIR"/aether_1.5.2_1.0.*_patched.jar
-    rm -f "$CLIENT_MODS_DIR"/aether_1.5.2_1.0_patched_*.jar
-    cp "$TARGET_JAR" "$CLIENT_MODS_DIR/aether_1.5.2_1.0_patched_1.2.0.jar"
-    echo "Deployed aether_1.5.2_1.0_patched_1.2.0.jar to client."
-fi
+# Deploy to every Hexxit-Remix instance (so we never update the wrong one)
+for MODS_DIR in "$INSTANCE_DIR/mods" /home/soko/.local/share/PrismLauncher/instances/Hexxit-Remix-0.1.[45]/minecraft/mods; do
+    [ -d "$MODS_DIR" ] || continue
+    echo "Deploying to: $MODS_DIR"
+    rm -f "$MODS_DIR"/aether_1.5.2_1.0.*_patched.jar
+    rm -f "$MODS_DIR"/aether_1.5.2_1.0_patched_*.jar
+    # Atomic replace: write temp then mv, so a running JVM keeps its old inode intact
+    cp "$TARGET_JAR" "$MODS_DIR/.aether_patch.tmp"
+    mv -f "$MODS_DIR/.aether_patch.tmp" "$MODS_DIR/aether_1.5.2_1.0_patched_1.2.0.jar"
+    md5sum "$MODS_DIR/aether_1.5.2_1.0_patched_1.2.0.jar"
+done
 
 echo "=== Build Complete: $TARGET_JAR ==="
