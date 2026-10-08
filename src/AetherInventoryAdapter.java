@@ -503,48 +503,23 @@ public class AetherInventoryAdapter {
     }
 
     public static void setAetherLayout(Object containerObj, boolean isAether) {
-        if (containerObj == null) return;
-        String cname = containerObj.getClass().getName();
-        
-        // Only modify slots if this is ContainerAether or GuiInventoryAether's container!
-        // Do NOT tamper with Tinkers Construct (ArmorExtendedContainer) or Vanilla (ContainerPlayer) native slot setups!
-        if (!cname.contains("ContainerAether") && !cname.contains("Aether")) {
-            return;
-        }
+        if (containerObj == null || !isAether) return;
 
         List slots = getSlots(containerObj);
         if (slots == null) return;
 
-        if (isAether) {
-            // Crafting Result & 2x2 Matrix
-            if (slots.size() > 0) setSlotPos(slots.get(0), 134, 62);
-            if (slots.size() > 1) setSlotPos(slots.get(1), 125, 8);
-            if (slots.size() > 2) setSlotPos(slots.get(2), 143, 8);
-            if (slots.size() > 3) setSlotPos(slots.get(3), 125, 26);
-            if (slots.size() > 4) setSlotPos(slots.get(4), 143, 26);
+        // Crafting Result & 2x2 Matrix
+        if (slots.size() > 0) setSlotPos(slots.get(0), 134, 62);
+        if (slots.size() > 1) setSlotPos(slots.get(1), 125, 8);
+        if (slots.size() > 2) setSlotPos(slots.get(2), 143, 8);
+        if (slots.size() > 3) setSlotPos(slots.get(3), 125, 26);
+        if (slots.size() > 4) setSlotPos(slots.get(4), 143, 26);
 
-            // Armor Slots
-            if (slots.size() > 5) setSlotPos(slots.get(5), 62, 8);
-            if (slots.size() > 6) setSlotPos(slots.get(6), 62, 26);
-            if (slots.size() > 7) setSlotPos(slots.get(7), 62, 44);
-            if (slots.size() > 8) setSlotPos(slots.get(8), 62, 62);
-
-            // Main Inventory Slots (9..35)
-            for (int i = 9; i < Math.min(36, slots.size()); i++) {
-                int k = i - 9;
-                int col = k % 9;
-                int row = k / 9;
-                setSlotPos(slots.get(i), 8 + col * 18, 84 + row * 18);
-            }
-
-            // Hotbar Slots (36..44)
-            for (int i = 36; i < Math.min(45, slots.size()); i++) {
-                int col = i - 36;
-                setSlotPos(slots.get(i), 8 + col * 18, 142);
-            }
-        } else {
-            applyVanillaSlots(containerObj);
-        }
+        // Armor Slots
+        if (slots.size() > 5) setSlotPos(slots.get(5), 62, 8);
+        if (slots.size() > 6) setSlotPos(slots.get(6), 62, 26);
+        if (slots.size() > 7) setSlotPos(slots.get(7), 62, 44);
+        if (slots.size() > 8) setSlotPos(slots.get(8), 62, 62);
     }
 
     public static void fixCreativeSurvivalLayout(Object guiObj, Object containerCreativeObj, Object playerContainerObj) {
