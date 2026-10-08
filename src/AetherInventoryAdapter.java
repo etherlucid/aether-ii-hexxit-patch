@@ -98,6 +98,76 @@ public class AetherInventoryAdapter {
         return false;
     }
 
+    private static int getGuiLeft(Object guiObj) {
+        if (guiObj == null) return 0;
+        int width = 0;
+        int xSize = 176;
+
+        Class<?> clazz = guiObj.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                String fname = f.getName();
+                f.setAccessible(true);
+                try {
+                    if (fname.equals("e") || fname.equals("guiLeft") || fname.equals("field_74198_a")) {
+                        int v = f.getInt(guiObj);
+                        if (v > 0) return v;
+                    }
+                    if (fname.equals("g") || fname.equals("width") || fname.equals("field_73880_f")) {
+                        int w = f.getInt(guiObj);
+                        if (w > 0) width = w;
+                    }
+                    if (fname.equals("b") || fname.equals("xSize") || fname.equals("field_74199_b")) {
+                        int x = f.getInt(guiObj);
+                        if (x > 0) xSize = x;
+                    }
+                } catch (Throwable t) {}
+            }
+            clazz = clazz.getSuperclass();
+        }
+
+        if (width > 0) {
+            if (xSize <= 0) xSize = 176;
+            return (width - xSize) / 2;
+        }
+        return 0;
+    }
+
+    private static int getGuiTop(Object guiObj) {
+        if (guiObj == null) return 0;
+        int height = 0;
+        int ySize = 166;
+
+        Class<?> clazz = guiObj.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                String fname = f.getName();
+                f.setAccessible(true);
+                try {
+                    if (fname.equals("o") || fname.equals("guiTop") || fname.equals("field_74197_b")) {
+                        int v = f.getInt(guiObj);
+                        if (v > 0) return v;
+                    }
+                    if (fname.equals("h") || fname.equals("height") || fname.equals("field_73881_g")) {
+                        int h = f.getInt(guiObj);
+                        if (h > 0) height = h;
+                    }
+                    if (fname.equals("c") || fname.equals("ySize") || fname.equals("field_74198_c")) {
+                        int y = f.getInt(guiObj);
+                        if (y > 0) ySize = y;
+                    }
+                } catch (Throwable t) {}
+            }
+            clazz = clazz.getSuperclass();
+        }
+
+        if (height > 0) {
+            if (ySize <= 0) ySize = 166;
+            return (height - ySize) / 2;
+        }
+        return 0;
+    }
+
     public static void attachTabs(Object guiObj, boolean isAether) {
         if (guiObj == null) return;
         String name = guiObj.getClass().getName();
@@ -119,8 +189,6 @@ public class AetherInventoryAdapter {
 
         try {
             Field buttonListField = null;
-            Field guiLeftField = null;
-            Field guiTopField = null;
 
             Class<?> clazz = guiObj.getClass();
             while (clazz != null && clazz != Object.class) {
@@ -130,14 +198,6 @@ public class AetherInventoryAdapter {
                         buttonListField = f;
                         buttonListField.setAccessible(true);
                     }
-                    if (fname.equals("e") || fname.equals("guiLeft") || fname.equals("field_74198_a")) {
-                        guiLeftField = f;
-                        guiLeftField.setAccessible(true);
-                    }
-                    if (fname.equals("o") || fname.equals("guiTop") || fname.equals("field_74197_b")) {
-                        guiTopField = f;
-                        guiTopField.setAccessible(true);
-                    }
                 }
                 clazz = clazz.getSuperclass();
             }
@@ -146,8 +206,8 @@ public class AetherInventoryAdapter {
             List buttonList = (List) buttonListField.get(guiObj);
             if (buttonList == null) return;
 
-            int guiLeft = (guiLeftField != null) ? guiLeftField.getInt(guiObj) : 0;
-            int guiTop = (guiTopField != null) ? guiTopField.getInt(guiObj) : 0;
+            int guiLeft = getGuiLeft(guiObj);
+            int guiTop = getGuiTop(guiObj);
             int tabY = guiTop - 28;
 
             boolean hasKnapsack = checkHasKnapsack();
