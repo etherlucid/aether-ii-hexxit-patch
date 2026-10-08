@@ -491,53 +491,26 @@ public class AetherInventoryAdapter {
         return -1;
     }
 
-    public static void applyVanillaSlots(Object containerObj) {
-        if (containerObj == null) return;
-        try {
-            Object currentScreen = getCurrentScreen();
-            if (currentScreen != null) {
-                String name = currentScreen.getClass().getName();
-                if (name.contains("GuiAetherContainerCreative") || isVanillaCreativeGui(currentScreen)) {
-                    // DO NOT overwrite slot positions when Creative Survival Inventory is open!
-                    return;
+    private static int getSlotNumber(Object slotObj) {
+        if (slotObj == null) return -1;
+        Class<?> clazz = slotObj.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                String fname = f.getName();
+                if (fname.equals("g") || fname.equals("slotNumber") || fname.equals("field_75222_d")) {
+                    try {
+                        f.setAccessible(true);
+                        return f.getInt(slotObj);
+                    } catch (Throwable t) {}
                 }
             }
-        } catch (Throwable t) {}
-
-        List slots = getSlots(containerObj);
-        if (slots == null) return;
-
-        // 2x2 Crafting Result (0) & Matrix (1..4)
-        if (slots.size() > 0) setSlotPos(slots.get(0), 144, 36);
-        if (slots.size() > 1) setSlotPos(slots.get(1), 88, 26);
-        if (slots.size() > 2) setSlotPos(slots.get(2), 106, 26);
-        if (slots.size() > 3) setSlotPos(slots.get(3), 88, 44);
-        if (slots.size() > 4) setSlotPos(slots.get(4), 106, 44);
-
-        // Armor Slots (5..8)
-        if (slots.size() > 5) setSlotPos(slots.get(5), 8, 8);
-        if (slots.size() > 6) setSlotPos(slots.get(6), 8, 26);
-        if (slots.size() > 7) setSlotPos(slots.get(7), 8, 44);
-        if (slots.size() > 8) setSlotPos(slots.get(8), 8, 62);
-
-        // Main Inventory Slots (9..35)
-        for (int i = 9; i < Math.min(36, slots.size()); i++) {
-            int k = i - 9;
-            int col = k % 9;
-            int row = k / 9;
-            setSlotPos(slots.get(i), 8 + col * 18, 84 + row * 18);
+            clazz = clazz.getSuperclass();
         }
+        return -1;
+    }
 
-        // Hotbar Slots (36..44)
-        for (int i = 36; i < Math.min(45, slots.size()); i++) {
-            int col = i - 36;
-            setSlotPos(slots.get(i), 8 + col * 18, 142);
-        }
-
-        // Extra Mod / Aether Accessory Slots (>= 45) -> Hide offscreen when in Vanilla tab
-        for (int i = 45; i < slots.size(); i++) {
-            setSlotPos(slots.get(i), -9999, -9999);
-        }
+    public static void applyVanillaSlots(Object containerObj) {
+        setAetherLayout(containerObj, false);
     }
 
     public static void setAetherLayout(Object containerObj, boolean isAether) {
@@ -556,48 +529,62 @@ public class AetherInventoryAdapter {
         List slots = getSlots(containerObj);
         if (slots == null || slots.isEmpty()) return;
 
-        if (isAether) {
-            // Crafting Result & 2x2 Matrix (Aether Layout)
-            if (slots.size() > 0) setSlotPos(slots.get(0), 134, 62);
-            if (slots.size() > 1) setSlotPos(slots.get(1), 125, 8);
-            if (slots.size() > 2) setSlotPos(slots.get(2), 143, 8);
-            if (slots.size() > 3) setSlotPos(slots.get(3), 125, 26);
-            if (slots.size() > 4) setSlotPos(slots.get(4), 143, 26);
+        for (int i = 0; i < slots.size(); i++) {
+            Object s = slots.get(i);
+            if (s == null) continue;
+            int slotNum = getSlotNumber(s);
+            if (slotNum < 0) continue;
 
-            // Armor Slots (Aether Layout)
-            if (slots.size() > 5) setSlotPos(slots.get(5), 62, 8);
-            if (slots.size() > 6) setSlotPos(slots.get(6), 62, 26);
-            if (slots.size() > 7) setSlotPos(slots.get(7), 62, 44);
-            if (slots.size() > 8) setSlotPos(slots.get(8), 62, 62);
-
-            // Main Inventory Slots (9..35)
-            for (int i = 9; i < Math.min(36, slots.size()); i++) {
-                int k = i - 9;
-                int col = k % 9;
-                int row = k / 9;
-                setSlotPos(slots.get(i), 8 + col * 18, 84 + row * 18);
-            }
-
-            // Hotbar Slots (36..44)
-            for (int i = 36; i < Math.min(45, slots.size()); i++) {
-                int col = i - 36;
-                setSlotPos(slots.get(i), 8 + col * 18, 142);
-            }
-
-            // Aether Accessory Slots (45..56)
-            int accIdx = 0;
-            for (int col = 0; col < 3; col++) {
-                for (int row = 0; row < 4; row++) {
-                    int slotIndex = 45 + accIdx;
-                    if (slotIndex < slots.size()) {
-                        setSlotPos(slots.get(slotIndex), 62 + (col + 1) * 18, 8 + row * 18);
-                    }
-                    accIdx++;
+            if (isAether) {
+                // Aether Accessories Tab Layout
+                switch (slotNum) {
+                    case 0: setSlotPos(s, 134, 62); break;
+                    case 1: setSlotPos(s, 125, 8); break;
+                    case 2: setSlotPos(s, 143, 8); break;
+                    case 3: setSlotPos(s, 125, 26); break;
+                    case 4: setSlotPos(s, 143, 26); break;
+                    case 5: setSlotPos(s, 62, 8); break;
+                    case 6: setSlotPos(s, 62, 26); break;
+                    case 7: setSlotPos(s, 62, 44); break;
+                    case 8: setSlotPos(s, 62, 62); break;
+                    default:
+                        if (slotNum >= 9 && slotNum <= 35) {
+                            int k = slotNum - 9;
+                            setSlotPos(s, 8 + (k % 9) * 18, 84 + (k / 9) * 18);
+                        } else if (slotNum >= 36 && slotNum <= 44) {
+                            setSlotPos(s, 8 + (slotNum - 36) * 18, 142);
+                        } else if (slotNum >= 45 && slotNum <= 56) {
+                            int accIdx = slotNum - 45;
+                            int col = accIdx / 4;
+                            int row = accIdx % 4;
+                            setSlotPos(s, 62 + (col + 1) * 18, 8 + row * 18);
+                        }
+                        break;
+                }
+            } else {
+                // Vanilla Main Inventory Tab Layout
+                switch (slotNum) {
+                    case 0: setSlotPos(s, 144, 36); break;
+                    case 1: setSlotPos(s, 88, 26); break;
+                    case 2: setSlotPos(s, 106, 26); break;
+                    case 3: setSlotPos(s, 88, 44); break;
+                    case 4: setSlotPos(s, 106, 44); break;
+                    case 5: setSlotPos(s, 8, 8); break;
+                    case 6: setSlotPos(s, 8, 26); break;
+                    case 7: setSlotPos(s, 8, 44); break;
+                    case 8: setSlotPos(s, 8, 62); break;
+                    default:
+                        if (slotNum >= 9 && slotNum <= 35) {
+                            int k = slotNum - 9;
+                            setSlotPos(s, 8 + (k % 9) * 18, 84 + (k / 9) * 18);
+                        } else if (slotNum >= 36 && slotNum <= 44) {
+                            setSlotPos(s, 8 + (slotNum - 36) * 18, 142);
+                        } else if (slotNum >= 45) {
+                            setSlotPos(s, -9999, -9999);
+                        }
+                        break;
                 }
             }
-        } else {
-            // Vanilla Survival Layout
-            applyVanillaSlots(containerObj);
         }
     }
 
