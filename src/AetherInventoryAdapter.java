@@ -461,10 +461,11 @@ public class AetherInventoryAdapter {
         while (clazz != null && clazz != Object.class) {
             for (Field f : clazz.getDeclaredFields()) {
                 String fname = f.getName();
-                if (fname.equals("d") || fname.equals("inventory") || fname.equals("field_75224_c")) {
+                if (fname.equals("f") || fname.equals("d") || fname.equals("inventory") || fname.equals("field_75224_c")) {
                     try {
                         f.setAccessible(true);
-                        return f.get(slotObj);
+                        Object val = f.get(slotObj);
+                        if (val != null) return val;
                     } catch (Throwable t) {}
                 }
             }
@@ -529,61 +530,93 @@ public class AetherInventoryAdapter {
         List slots = getSlots(containerObj);
         if (slots == null || slots.isEmpty()) return;
 
+        int accIdx = 0;
+
         for (int i = 0; i < slots.size(); i++) {
             Object s = slots.get(i);
             if (s == null) continue;
-            int slotNum = getSlotNumber(s);
-            if (slotNum < 0) continue;
 
-            if (isAether) {
-                // Aether Accessories Tab Layout
-                switch (slotNum) {
-                    case 0: setSlotPos(s, 134, 62); break;
-                    case 1: setSlotPos(s, 125, 8); break;
-                    case 2: setSlotPos(s, 143, 8); break;
-                    case 3: setSlotPos(s, 125, 26); break;
-                    case 4: setSlotPos(s, 143, 26); break;
-                    case 5: setSlotPos(s, 62, 8); break;
-                    case 6: setSlotPos(s, 62, 26); break;
-                    case 7: setSlotPos(s, 62, 44); break;
-                    case 8: setSlotPos(s, 62, 62); break;
-                    default:
-                        if (slotNum >= 9 && slotNum <= 35) {
-                            int k = slotNum - 9;
-                            setSlotPos(s, 8 + (k % 9) * 18, 84 + (k / 9) * 18);
-                        } else if (slotNum >= 36 && slotNum <= 44) {
-                            setSlotPos(s, 8 + (slotNum - 36) * 18, 142);
-                        } else if (slotNum >= 45 && slotNum <= 56) {
-                            int accIdx = slotNum - 45;
-                            int col = accIdx / 4;
-                            int row = accIdx % 4;
-                            setSlotPos(s, 62 + (col + 1) * 18, 8 + row * 18);
-                        }
-                        break;
+            Object inv = getSlotInventory(s);
+            int slotIdx = getSlotIndex(s);
+            String invName = (inv != null) ? inv.getClass().getName() : "";
+            String slotClassName = s.getClass().getName();
+
+            boolean isPlayerInv = invName.contains("InventoryPlayer") || invName.equals("lz") || invName.endsWith(".InventoryPlayer");
+            boolean isCraftingInv = invName.contains("Crafting") || invName.contains("Result") || invName.equals("tr") || invName.equals("to");
+            boolean isAccessorySlot = slotClassName.contains("SlotMoreArmor") || slotClassName.contains("Accessory") || invName.contains("Aether");
+
+            if (isPlayerInv && slotIdx >= 0) {
+                // Hotbar Slots (0..8 in InventoryPlayer)
+                if (slotIdx >= 0 && slotIdx < 9) {
+                    setSlotPos(s, 8 + slotIdx * 18, 142);
+                    continue;
                 }
-            } else {
-                // Vanilla Main Inventory Tab Layout
-                switch (slotNum) {
-                    case 0: setSlotPos(s, 144, 36); break;
-                    case 1: setSlotPos(s, 88, 26); break;
-                    case 2: setSlotPos(s, 106, 26); break;
-                    case 3: setSlotPos(s, 88, 44); break;
-                    case 4: setSlotPos(s, 106, 44); break;
-                    case 5: setSlotPos(s, 8, 8); break;
-                    case 6: setSlotPos(s, 8, 26); break;
-                    case 7: setSlotPos(s, 8, 44); break;
-                    case 8: setSlotPos(s, 8, 62); break;
-                    default:
-                        if (slotNum >= 9 && slotNum <= 35) {
-                            int k = slotNum - 9;
-                            setSlotPos(s, 8 + (k % 9) * 18, 84 + (k / 9) * 18);
-                        } else if (slotNum >= 36 && slotNum <= 44) {
-                            setSlotPos(s, 8 + (slotNum - 36) * 18, 142);
-                        } else if (slotNum >= 45) {
-                            setSlotPos(s, -9999, -9999);
-                        }
-                        break;
+
+                // Main Inventory Slots (9..35 in InventoryPlayer)
+                if (slotIdx >= 9 && slotIdx < 36) {
+                    int k = slotIdx - 9;
+                    int col = k % 9;
+                    int row = k / 9;
+                    setSlotPos(s, 8 + col * 18, 84 + row * 18);
+                    continue;
                 }
+
+                // Vanilla Armor Slots (36..39 in InventoryPlayer)
+                if (slotIdx >= 36 && slotIdx < 40) {
+                    if (isAether) {
+                        // Aether Layout for Armor
+                        switch (slotIdx) {
+                            case 39: setSlotPos(s, 62, 8); break;  // Helmet
+                            case 38: setSlotPos(s, 62, 26); break; // Chestplate
+                            case 37: setSlotPos(s, 62, 44); break; // Leggings
+                            case 36: setSlotPos(s, 62, 62); break; // Boots
+                        }
+                    } else {
+                        // Vanilla Layout for Armor
+                        switch (slotIdx) {
+                            case 39: setSlotPos(s, 8, 8); break;  // Helmet
+                            case 38: setSlotPos(s, 8, 26); break; // Chestplate
+                            case 37: setSlotPos(s, 8, 44); break; // Leggings
+                            case 36: setSlotPos(s, 8, 62); break; // Boots
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            if (isCraftingInv || (i >= 0 && i < 5 && !isPlayerInv)) {
+                // Crafting Result (i == 0 or Result) & 2x2 Matrix
+                if (isAether) {
+                    switch (i) {
+                        case 0: setSlotPos(s, 134, 62); break;
+                        case 1: setSlotPos(s, 125, 8); break;
+                        case 2: setSlotPos(s, 143, 8); break;
+                        case 3: setSlotPos(s, 125, 26); break;
+                        case 4: setSlotPos(s, 143, 26); break;
+                    }
+                } else {
+                    switch (i) {
+                        case 0: setSlotPos(s, 144, 36); break;
+                        case 1: setSlotPos(s, 88, 26); break;
+                        case 2: setSlotPos(s, 106, 26); break;
+                        case 3: setSlotPos(s, 88, 44); break;
+                        case 4: setSlotPos(s, 106, 44); break;
+                    }
+                }
+                continue;
+            }
+
+            // Aether Accessory Slots or Extra Slots
+            if (isAccessorySlot || i >= 45) {
+                if (isAether) {
+                    int col = accIdx / 4;
+                    int row = accIdx % 4;
+                    setSlotPos(s, 62 + (col + 1) * 18, 8 + row * 18);
+                    accIdx++;
+                } else {
+                    setSlotPos(s, -9999, -9999);
+                }
+                continue;
             }
         }
     }
