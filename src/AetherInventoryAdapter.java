@@ -46,21 +46,59 @@ public class AetherInventoryAdapter {
     }
 
     public static boolean shouldReplaceSurvivalGui(Object screen) {
-        if (screen == null) return true;
-        String name = screen.getClass().getName();
-        if (name.contains("GuiInventoryAether")) return false;
-        if (name.contains("GuiChat") || 
-            name.contains("GuiIngameMenu") || 
-            name.contains("GuiOptions") || 
-            name.contains("GuiMainMenu") || 
-            name.contains("GuiEditSign") || 
-            name.contains("GuiSleepMP") || 
-            name.contains("GuiCommandBlock") || 
-            name.contains("GuiScreenBook") ||
-            name.contains("GuiGameOver")) {
-            return false;
+        return false;
+    }
+
+    public static void initAetherGui(Object guiObj, Object playerObj) {
+        if (guiObj == null || playerObj == null) return;
+        try {
+            // Set static player field on GuiInventoryAether
+            Class<?> guiClass = guiObj.getClass();
+            try {
+                Field playerField = guiClass.getDeclaredField("player");
+                playerField.setAccessible(true);
+                playerField.set(null, playerObj);
+            } catch (Throwable t) {}
+
+            // Get player.openContainer (bL / openContainer)
+            Object openContainer = null;
+            for (Field f : playerObj.getClass().getDeclaredFields()) {
+                String fname = f.getName();
+                if (fname.equals("bL") || fname.equals("openContainer") || fname.equals("field_71070_bA")) {
+                    f.setAccessible(true);
+                    openContainer = f.get(playerObj);
+                    if (openContainer != null) break;
+                }
+            }
+            if (openContainer == null) {
+                for (Field f : playerObj.getClass().getDeclaredFields()) {
+                    String fname = f.getName();
+                    if (fname.equals("bK") || fname.equals("inventoryContainer") || fname.equals("field_71069_bz")) {
+                        f.setAccessible(true);
+                        openContainer = f.get(playerObj);
+                        if (openContainer != null) break;
+                    }
+                }
+            }
+
+            // Set guiObj.inventorySlots (d / inventorySlots) = openContainer
+            if (openContainer != null) {
+                Class<?> clazz = guiObj.getClass();
+                while (clazz != null && clazz != Object.class) {
+                    for (Field f : clazz.getDeclaredFields()) {
+                        String fname = f.getName();
+                        if (fname.equals("d") || fname.equals("inventorySlots") || fname.equals("field_75151_b") || fname.equals("slots")) {
+                            f.setAccessible(true);
+                            f.set(guiObj, openContainer);
+                            break;
+                        }
+                    }
+                    clazz = clazz.getSuperclass();
+                }
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
         }
-        return true;
     }
 
     public static boolean shouldReplaceCreativeGui(Object screen) {
@@ -503,23 +541,64 @@ public class AetherInventoryAdapter {
     }
 
     public static void setAetherLayout(Object containerObj, boolean isAether) {
-        if (containerObj == null || !isAether) return;
+        if (containerObj == null) return;
+        try {
+            Object currentScreen = getCurrentScreen();
+            if (currentScreen != null) {
+                String name = currentScreen.getClass().getName();
+                if (name.contains("GuiAetherContainerCreative") || isVanillaCreativeGui(currentScreen)) {
+                    // DO NOT overwrite slot positions when Creative Survival Inventory is open!
+                    return;
+                }
+            }
+        } catch (Throwable t) {}
 
         List slots = getSlots(containerObj);
-        if (slots == null) return;
+        if (slots == null || slots.isEmpty()) return;
 
-        // Crafting Result & 2x2 Matrix
-        if (slots.size() > 0) setSlotPos(slots.get(0), 134, 62);
-        if (slots.size() > 1) setSlotPos(slots.get(1), 125, 8);
-        if (slots.size() > 2) setSlotPos(slots.get(2), 143, 8);
-        if (slots.size() > 3) setSlotPos(slots.get(3), 125, 26);
-        if (slots.size() > 4) setSlotPos(slots.get(4), 143, 26);
+        if (isAether) {
+            // Crafting Result & 2x2 Matrix (Aether Layout)
+            if (slots.size() > 0) setSlotPos(slots.get(0), 134, 62);
+            if (slots.size() > 1) setSlotPos(slots.get(1), 125, 8);
+            if (slots.size() > 2) setSlotPos(slots.get(2), 143, 8);
+            if (slots.size() > 3) setSlotPos(slots.get(3), 125, 26);
+            if (slots.size() > 4) setSlotPos(slots.get(4), 143, 26);
 
-        // Armor Slots
-        if (slots.size() > 5) setSlotPos(slots.get(5), 62, 8);
-        if (slots.size() > 6) setSlotPos(slots.get(6), 62, 26);
-        if (slots.size() > 7) setSlotPos(slots.get(7), 62, 44);
-        if (slots.size() > 8) setSlotPos(slots.get(8), 62, 62);
+            // Armor Slots (Aether Layout)
+            if (slots.size() > 5) setSlotPos(slots.get(5), 62, 8);
+            if (slots.size() > 6) setSlotPos(slots.get(6), 62, 26);
+            if (slots.size() > 7) setSlotPos(slots.get(7), 62, 44);
+            if (slots.size() > 8) setSlotPos(slots.get(8), 62, 62);
+
+            // Main Inventory Slots (9..35)
+            for (int i = 9; i < Math.min(36, slots.size()); i++) {
+                int k = i - 9;
+                int col = k % 9;
+                int row = k / 9;
+                setSlotPos(slots.get(i), 8 + col * 18, 84 + row * 18);
+            }
+
+            // Hotbar Slots (36..44)
+            for (int i = 36; i < Math.min(45, slots.size()); i++) {
+                int col = i - 36;
+                setSlotPos(slots.get(i), 8 + col * 18, 142);
+            }
+
+            // Aether Accessory Slots (45..56)
+            int accIdx = 0;
+            for (int col = 0; col < 3; col++) {
+                for (int row = 0; row < 4; row++) {
+                    int slotIndex = 45 + accIdx;
+                    if (slotIndex < slots.size()) {
+                        setSlotPos(slots.get(slotIndex), 62 + (col + 1) * 18, 8 + row * 18);
+                    }
+                    accIdx++;
+                }
+            }
+        } else {
+            // Vanilla Survival Layout
+            applyVanillaSlots(containerObj);
+        }
     }
 
     public static void fixCreativeSurvivalLayout(Object guiObj, Object containerCreativeObj, Object playerContainerObj) {

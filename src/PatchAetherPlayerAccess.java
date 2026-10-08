@@ -351,13 +351,14 @@ public class PatchAetherPlayerAccess {
         for (Object mnObj : cn.methods) {
             MethodNode mn = (MethodNode) mnObj;
             if ("<init>".equals(mn.name) && "(Lsq;)V".equals(mn.desc)) {
-                System.out.println("  Found GuiInventoryAether.<init>(sq): rewriting to invoke azg.<init>(sq)");
+                System.out.println("  Found GuiInventoryAether.<init>(sq): rewriting to invoke azg.<init>(sq) and AetherInventoryAdapter.initAetherGui");
                 InsnList newInit = new InsnList();
                 newInit.add(new VarInsnNode(Opcodes.ALOAD, 0));
                 newInit.add(new VarInsnNode(Opcodes.ALOAD, 1));
                 newInit.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "azg", "<init>", "(Lsq;)V"));
+                newInit.add(new VarInsnNode(Opcodes.ALOAD, 0));
                 newInit.add(new VarInsnNode(Opcodes.ALOAD, 1));
-                newInit.add(new FieldInsnNode(Opcodes.PUTSTATIC, "net/aetherteam/aether/client/gui/GuiInventoryAether", "player", "Lsq;"));
+                newInit.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "AetherInventoryAdapter", "initAetherGui", "(Ljava/lang/Object;Ljava/lang/Object;)V"));
                 newInit.add(new InsnNode(Opcodes.RETURN));
 
                 mn.instructions.clear();
