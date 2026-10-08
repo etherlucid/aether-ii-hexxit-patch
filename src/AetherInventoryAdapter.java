@@ -504,6 +504,14 @@ public class AetherInventoryAdapter {
 
     public static void setAetherLayout(Object containerObj, boolean isAether) {
         if (containerObj == null) return;
+        String cname = containerObj.getClass().getName();
+        
+        // Only modify slots if this is ContainerAether or GuiInventoryAether's container!
+        // Do NOT tamper with Tinkers Construct (ArmorExtendedContainer) or Vanilla (ContainerPlayer) native slot setups!
+        if (!cname.contains("ContainerAether") && !cname.contains("Aether")) {
+            return;
+        }
+
         List slots = getSlots(containerObj);
         if (slots == null) return;
 
