@@ -293,9 +293,34 @@ public class AetherInventoryAdapter {
                 buttonList.add(new GuiAetherTab(8003, tabX, tabY, 2, colIndex++, activeTab == 2));
             }
 
+            // Update slot layout for active tab
+            Object container = getContainer(guiObj);
+            if (container != null) {
+                setAetherLayout(container, activeTab == 3);
+            }
+
         } catch (Throwable t) {
             t.printStackTrace();
         }
+    }
+
+    private static Object getContainer(Object guiObj) {
+        if (guiObj == null) return null;
+        Class<?> clazz = guiObj.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                String fname = f.getName();
+                if (fname.equals("d") || fname.equals("inventorySlots") || fname.equals("field_75151_b") || fname.equals("slots")) {
+                    try {
+                        f.setAccessible(true);
+                        Object val = f.get(guiObj);
+                        if (val != null) return val;
+                    } catch (Throwable t) {}
+                }
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return null;
     }
 
     public static Object getCurrentScreen() {
@@ -489,6 +514,10 @@ public class AetherInventoryAdapter {
             }
             clazz = clazz.getSuperclass();
         }
+        try {
+            java.lang.reflect.Method m = slotObj.getClass().getMethod("getSlotIndex");
+            return ((Integer) m.invoke(slotObj)).intValue();
+        } catch (Throwable t) {}
         return -1;
     }
 
@@ -599,7 +628,7 @@ public class AetherInventoryAdapter {
                 int x = getSlotX(s);
                 int y = getSlotY(s);
                 Object stack = getSlotStack(s);
-                System.out.println("  Slot[" + i + "]: class=" + s.getClass().getSimpleName() + " num=" + slotNum + " invIdx=" + slotIdx + " inv=" + invName + " x=" + x + " y=" + y + " stack=" + (stack != null ? stack.toString() : "empty"));
+                System.out.println("  Slot[" + i + "]: class=" + s.getClass().getSimpleName() + " num=" + slotNum + " invIdx=" + slotIdx + " inv=" + invName + " isPlayerInv=" + ((invName.contains("InventoryPlayer") || invName.equals("so") || invName.equals("lz"))) + " x=" + x + " y=" + y + " stack=" + (stack != null ? stack.toString() : "empty"));
             }
             System.out.println("=====================================");
         }
@@ -615,8 +644,8 @@ public class AetherInventoryAdapter {
             String invName = (inv != null) ? inv.getClass().getName() : "";
             String slotClassName = s.getClass().getName();
 
-            boolean isPlayerInv = invName.contains("InventoryPlayer") || invName.equals("lz") || invName.endsWith(".InventoryPlayer");
-            boolean isCraftingInv = invName.contains("Crafting") || invName.contains("Result") || invName.equals("tr") || invName.equals("to");
+            boolean isPlayerInv = invName.contains("InventoryPlayer") || invName.equals("so") || invName.equals("lz") || invName.endsWith(".InventoryPlayer");
+            boolean isCraftingInv = invName.contains("Crafting") || invName.contains("Result") || invName.equals("tr") || invName.equals("to") || invName.equals("aqg");
             boolean isAccessorySlot = slotClassName.contains("SlotMoreArmor") || slotClassName.contains("Accessory") || invName.contains("Aether");
 
             if (isPlayerInv && slotIdx >= 0) {
@@ -738,7 +767,7 @@ public class AetherInventoryAdapter {
             int slotIdx = (innerSlot != null) ? getSlotIndex(innerSlot) : -1;
             String invName = (inv != null) ? inv.getClass().getName() : "";
 
-            boolean isPlayerInv = invName.contains("InventoryPlayer") || invName.equals("lz");
+            boolean isPlayerInv = invName.contains("InventoryPlayer") || invName.equals("so") || invName.equals("lz");
 
             if (isPlayerInv && slotIdx >= 0) {
                 // Hotbar slots (0..8 in InventoryPlayer) -> row y = 112
