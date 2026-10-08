@@ -2,6 +2,7 @@ import java.util.List;
 import java.lang.reflect.Field;
 import net.aetherteam.aether.containers.SlotAetherCreativeInventory;
 import net.aetherteam.aether.client.gui.GuiAetherContainerCreative;
+ 
 
 public class AetherInventoryAdapter {
 
@@ -79,6 +80,124 @@ public class AetherInventoryAdapter {
 
     public static boolean isVanillaCreativeGui(Object screen) {
         return shouldReplaceCreativeGui(screen);
+    }
+
+    private static boolean checkHasKnapsack() {
+        try {
+            Class<?> tproxyClass = Class.forName("mods.tinker.tconstruct.client.TProxyClient");
+            Field armorField = tproxyClass.getField("armorExtended");
+            Object armorObj = armorField.get(null);
+            if (armorObj != null) {
+                Field invField = armorObj.getClass().getField("inventory");
+                Object[] invArray = (Object[]) invField.get(armorObj);
+                if (invArray != null && invArray.length > 2 && invArray[2] != null) {
+                    return true;
+                }
+            }
+        } catch (Throwable t) {}
+        return false;
+    }
+
+    public static void attachTabs(Object guiObj, boolean isAether) {
+        if (guiObj == null) return;
+        String name = guiObj.getClass().getName();
+
+        // Do not attach survival tabs to Creative Inventory screens!
+        if (name.equals("ayy") || name.contains("GuiContainerCreative") || name.contains("GuiAetherContainerCreative")) {
+            return;
+        }
+
+        // Check if current screen is a survival inventory screen or GuiInventoryAether
+        boolean isSurvivalScreen = name.equals("azg") || 
+                                   name.endsWith(".GuiInventory") || 
+                                   name.contains("ArmorExtendedGui") || 
+                                   name.contains("KnapsackGui") || 
+                                   name.contains("GuiInventoryAether") || 
+                                   isAether;
+
+        if (!isSurvivalScreen) return;
+
+        try {
+            Field buttonListField = null;
+            Field guiLeftField = null;
+            Field guiTopField = null;
+
+            Class<?> clazz = guiObj.getClass();
+            while (clazz != null && clazz != Object.class) {
+                for (Field f : clazz.getDeclaredFields()) {
+                    String fname = f.getName();
+                    if (fname.equals("k") || fname.equals("buttonList") || fname.equals("field_73887_h")) {
+                        buttonListField = f;
+                        buttonListField.setAccessible(true);
+                    }
+                    if (fname.equals("e") || fname.equals("guiLeft") || fname.equals("field_74198_a")) {
+                        guiLeftField = f;
+                        guiLeftField.setAccessible(true);
+                    }
+                    if (fname.equals("o") || fname.equals("guiTop") || fname.equals("field_74197_b")) {
+                        guiTopField = f;
+                        guiTopField.setAccessible(true);
+                    }
+                }
+                clazz = clazz.getSuperclass();
+            }
+
+            if (buttonListField == null) return;
+            List buttonList = (List) buttonListField.get(guiObj);
+            if (buttonList == null) return;
+
+            int guiLeft = (guiLeftField != null) ? guiLeftField.getInt(guiObj) : 0;
+            int guiTop = (guiTopField != null) ? guiTopField.getInt(guiObj) : 0;
+            int tabY = guiTop - 28;
+
+            boolean hasKnapsack = checkHasKnapsack();
+
+            // Determine active tab index (0=Vanilla, 1=Tinkers Armor, 2=Knapsack, 3=Aether)
+            int activeTab = 0;
+            if (isAether || name.contains("GuiInventoryAether")) {
+                activeTab = 3;
+            } else if (name.contains("ArmorExtendedGui")) {
+                activeTab = 1;
+            } else if (name.contains("KnapsackGui")) {
+                activeTab = 2;
+            }
+
+            // Remove old tab buttons from buttonList
+            java.util.Iterator it = buttonList.iterator();
+            while (it.hasNext()) {
+                Object btn = it.next();
+                if (btn != null) {
+                    String bname = btn.getClass().getName();
+                    if (btn instanceof GuiAetherTab || bname.contains("GuiAetherTab") || bname.contains("InventoryTab")) {
+                        it.remove();
+                    }
+                }
+            }
+
+            // Dynamically instantiate and attach tab buttons
+            int tabX = guiLeft;
+            int colIndex = 0;
+
+            // Tab 0: Vanilla Inventory (8001)
+            buttonList.add(new GuiAetherTab(8001, tabX, tabY, 0, colIndex++, activeTab == 0));
+            tabX += 28;
+
+            // Tab 1: Tinkers Armor (8002)
+            buttonList.add(new GuiAetherTab(8002, tabX, tabY, 1, colIndex++, activeTab == 1));
+            tabX += 28;
+
+            // Tab 3: Aether Accessories (8004)
+            buttonList.add(new GuiAetherTab(8004, tabX, tabY, 3, colIndex++, activeTab == 3));
+            tabX += 28;
+
+            // Tab 2: Knapsack (8003) - if equipped
+            if (hasKnapsack) {
+                buttonList.add(new GuiAetherTab(8003, tabX, tabY, 2, colIndex++, activeTab == 2));
+            }
+
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
     }
 
     public static Object getCurrentScreen() {
