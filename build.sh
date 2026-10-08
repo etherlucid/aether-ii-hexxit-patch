@@ -16,13 +16,13 @@ LWJGL_JAR="/home/soko/.local/share/PrismLauncher/libraries/org/lwjgl/lwjgl/lwjgl
 
 BASE_JAR="/home/soko/Documents/Projects/Ludum/Game/Minecraft/aether_1.5.2_1.0_patched.jar"
 if [ ! -f "$BASE_JAR" ]; then
-    BASE_JAR="$INSTANCE_DIR/mods/aether_1.5.2_1.0_patched_1.1.0.jar"
+    BASE_JAR="$INSTANCE_DIR/mods/aether_1.5.2_1.0_patched_1.2.0.jar"
 fi
 
-TARGET_JAR="$SCRIPT_DIR/mods/aether_1.5.2_1.0_patched_1.1.0.jar"
+TARGET_JAR="$SCRIPT_DIR/mods/aether_1.5.2_1.0_patched_1.2.0.jar"
 CLIENT_MODS_DIR="$INSTANCE_DIR/mods"
 
-echo "=== Building Aether II Hexxit Patched Jar v1.1.0 (Pure Forge & Smart Moving Fixes) ==="
+echo "=== Building Aether II Hexxit Patched Jar v1.2.0 (Key 'I' Dispatcher, Dynamic Tabs & Smart Moving Fixes) ==="
 
 rm -rf /tmp/build_out
 mkdir -p /tmp/build_out
@@ -51,8 +51,8 @@ if [ -d "$CLIENT_MODS_DIR" ]; then
     echo "Deploying to client instance: $CLIENT_MODS_DIR..."
     rm -f "$CLIENT_MODS_DIR"/aether_1.5.2_1.0.*_patched.jar
     rm -f "$CLIENT_MODS_DIR"/aether_1.5.2_1.0_patched_*.jar
-    cp "$TARGET_JAR" "$CLIENT_MODS_DIR/aether_1.5.2_1.0_patched_1.1.0.jar"
-    echo "Deployed aether_1.5.2_1.0_patched_1.1.0.jar to client."
+    cp "$TARGET_JAR" "$CLIENT_MODS_DIR/aether_1.5.2_1.0_patched_1.2.0.jar"
+    echo "Deployed aether_1.5.2_1.0_patched_1.2.0.jar to client."
 fi
 
 echo "=== Build Complete: $TARGET_JAR ==="
